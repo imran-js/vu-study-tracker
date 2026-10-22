@@ -23,7 +23,13 @@ The documented predecessor v1 is the same study schema without resource records 
 
 Backup envelope: `format`, `schemaVersion`, `exportedAt`, `applicationVersion`, `data`. The schema version controls compatibility; the application version is informational. `data` contains settings and all entity collections. Parsing strips fields outside the allowed schemas, so authorization tokens cannot become persisted resource fields. Backups should still be treated as private because they contain personal notes and links. Restore is a complete replacement with preview and explicit confirmation, using the same validated repository transaction. The application does not merge two datasets.
 
-## Future private synchronization
+## Private cloud storage
+
+The first cloud adapter is now implemented in `src/data/supabase.ts`, with email/password account UI in `src/app/CloudApp.tsx`. It uses one JSON snapshot per owner, owner-only row policies, and a security-invoker save function that checks expected revisions atomically. See `supabase/setup.sql`. The public client key is never a privileged credential. Account data is not cached in IndexedDB; signing out unmounts cloud screens. Online writes and reload-based reads are the initial synchronization model. Live subscriptions and offline writes remain deferred.
+
+`src/features/backup/catalog.ts` provides validated additive imports. `src/data/local-catalog.ts` can apply a private local catalog once per account/catalog marker during development. Vite serves the ignored catalog only through a loopback, same-origin, uncached development endpoint; production builds do not include it. Existing progress and course edits are preserved, and Drive file IDs prevent duplicate resource entries. Failed cloud commits are reported without falling back to a second writable database.
+
+### Expansion guidance
 
 Implement another `StudyRepository`, inject it into the application shell, and keep existing screens and calculations. Add account UI, database ownership/access policies, account-specific local cache boundaries, revision conflict detection, and clear save/sync status. Start with online writes and explicit conflict resolution. Do not silently replace browser records during sign-in: preview and confirm uploading local records first.
 

@@ -1,5 +1,19 @@
 # Release verification
 
+## Cloud and course import update — 23 October 2026
+
+- 35 automated tests pass; production build passes. GitHub Actions also passed dependency installation, tests, build and artifact upload for commit `dcb063c`.
+- Added email/password sign-in and a Supabase repository with owner checks and transactional revision conflicts. Account creation and successful sign-in were confirmed by the user.
+- Prepared a private five-course catalog from the user's Drive folders and handout outlines. Validated 341 numbered units and 387 resource links against the domain model; repeated merge added zero records. The user confirmed all five courses appeared after reloading the signed-in local app.
+- The live database rejected an anonymous read with HTTP 401 and no returned records. This is not a substitute for remaining authenticated second-account isolation and two-device conflict tests.
+- Scanned all tracked application files and production assets for private Drive IDs from the catalog: no matches. The private catalog and `.env.local` are Git-ignored. The published workflow includes only the intended public Supabase client configuration, not privileged credentials.
+- Code is published to the GitHub repository. Initial Pages deployment failed because Pages was not enabled; selecting GitHub Actions in repository Pages settings is required before retrying.
+- Cloud writes require connectivity; other-device changes appear on reload. No offline write queue or live subscription is implemented. Export backups remain necessary.
+
+The following section records the original browser-only release checks, not the current cloud-storage status.
+
+## Original local release
+
 Verified on 22 October 2026.
 
 - Production build: passed TypeScript compilation and Vite asset generation.
