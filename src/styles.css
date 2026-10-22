@@ -1870,3 +1870,23 @@ label small {
     font-size: 9px;
   }
 }
+/* Account controls remain above the existing study workspace. */
+.cloud-account {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 10px 20px;
+  background: #eef4f1;
+  color: #24483c;
+}
+.cloud-login,
+.cloud-setup {
+  max-width: 650px;
+  margin: 48px auto;
+  padding: 28px;
+}
+.cloud-login > button {
+  margin: 12px 12px 0 0;
+}

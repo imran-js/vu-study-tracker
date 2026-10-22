@@ -21,6 +21,7 @@ export interface StudyContextValue {
   edit: (request: EditorRequest) => void;
   semesterId: string;
   saveError?: string;
+  cloud?: boolean;
 }
 export const StudyContext = createContext<StudyContextValue | undefined>(
   undefined,

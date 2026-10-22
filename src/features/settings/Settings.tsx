@@ -23,7 +23,7 @@ export function downloadBackup(data: Dataset, prefix = "study-desk-backup") {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 export function Settings() {
-  const { data: d, run, edit, saveError } = useStudy();
+  const { data: d, run, edit, saveError, cloud } = useStudy();
   const [timezone, setTimezone] = useState(d.settings.timezone);
   const [weekStart, setWeekStart] = useState(d.settings.weekStart);
   const [target, setTarget] = useState(
@@ -263,9 +263,9 @@ export function Settings() {
           <div>
             <h3>Personal study data</h3>
             <p>
-              Records live in IndexedDB in this browser. Devices, browser
-              profiles, localhost ports, and the published origin have separate
-              records. Clearing browser data can erase them.
+              {cloud
+                ? "Records are stored in your private Supabase account. Sign in with the same account on another device, then reload to get the latest records. Internet access is required to save. Conflicting saves are rejected; export your current view before reloading if needed."
+                : "Records live in IndexedDB in this browser. Devices, browser profiles, localhost ports, and the published origin have separate records. Clearing browser data can erase them."}
             </p>
           </div>
         </div>

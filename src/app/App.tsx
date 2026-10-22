@@ -16,7 +16,7 @@ import {
 import { ZodError } from "zod";
 import { initialData, type Dataset } from "../domain/model";
 import { IndexedDbRepository } from "../data/indexeddb";
-import type { Snapshot } from "../data/contracts";
+import type { Snapshot, StudyRepository } from "../data/contracts";
 import { commit } from "./actions";
 import { StudyContext, type EditorRequest } from "./context";
 import { Editor } from "./Editor";
@@ -30,8 +30,9 @@ import { Settings } from "../features/settings/Settings";
 import { Timer } from "../features/sessions/Sessions";
 import { Modal } from "../shared/ui";
 import { today } from "../domain/dates";
+import { applyLocalCatalog } from "../data/local-catalog";
 
-const repository = new IndexedDbRepository();
+const localRepository = new IndexedDbRepository();
 const nav = [
   { id: "today", label: "Today", icon: Home },
   { id: "courses", label: "Courses", icon: BookOpen },
@@ -45,7 +46,15 @@ function route() {
   const id = window.location.hash.slice(2).split("/")[0];
   return nav.some((n) => n.id === id) ? id : "today";
 }
-export default function App() {
+export default function App({
+  repository = localRepository,
+  cloud = false,
+  accountId,
+}: {
+  repository?: StudyRepository;
+  cloud?: boolean;
+  accountId?: string;
+}) {
   const [snapshot, setSnapshot] = useState<Snapshot>();
   const latest = useRef<Snapshot | undefined>(undefined);
   const saving = useRef(false);
@@ -101,6 +110,16 @@ export default function App() {
       try {
         let s = await repository.load();
         if (!s) s = await repository.replace(initialData(), 0);
+        if (cloud && accountId) {
+          try {
+            s = await applyLocalCatalog(repository, s, accountId);
+          } catch (error) {
+            setNotice({
+              text: `Course import was not completed: ${error instanceof Error ? error.message : "Please reload to retry"}`,
+              error: true,
+            });
+          }
+        }
         latest.current = s;
         setSnapshot(s);
         setRecovered(!!s.data.timer);
@@ -128,6 +147,7 @@ export default function App() {
         return false;
       }
       saving.current = true;
+      setNotice({ text: cloud ? "Saving to cloud…" : "Saving…", error: false });
       try {
         const next = await commit(repository, latest.current, mutate);
         latest.current = next;
@@ -149,7 +169,7 @@ export default function App() {
         saving.current = false;
       }
     },
-    [],
+    [repository, cloud],
   );
   if (!snapshot)
     return (
@@ -196,6 +216,7 @@ export default function App() {
     <StudyContext.Provider
       value={{
         data: d,
+        cloud,
         semesterId: semester.id,
         run,
         edit: (request) => {
@@ -253,7 +274,7 @@ export default function App() {
           <div className="sidebar-bottom">
             <div className="local-status">
               <span />
-              Saved on this browser
+              {cloud ? "Saved to your private cloud" : "Saved on this browser"}
             </div>
             <p>
               A steady pace.
@@ -379,15 +400,21 @@ export default function App() {
             semester is ready, with no invented courses or deadlines.
           </p>
           <div className="onboarding-note">
-            <strong>Your records live in this browser.</strong>
+            <strong>
+              {cloud
+                ? "Your records are saved to your private cloud account."
+                : "Your records live in this browser."}
+            </strong>
             <p>
-              Devices, browsers, profiles, local development, and the published
-              website have separate records. Clearing browser data can erase
-              them.
+              {cloud
+                ? "Sign in with the same account on another device to access your records. Cloud saves require an internet connection. Export backups regularly."
+                : "Devices, browsers, profiles, local development, and the published website have separate records. Clearing browser data can erase them."}
             </p>
             <p>
-              GitHub backs up your code. GitHub Pages hosts the app. Neither
-              saves or synchronizes your study records.
+              GitHub backs up your code. GitHub Pages hosts the app.{" "}
+              {cloud
+                ? "Supabase saves your study records under your signed-in account."
+                : "Neither saves or synchronizes your study records."}
             </p>
             <p>
               Export backups in Settings & Data. They include resource links,

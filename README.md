@@ -2,6 +2,20 @@
 
 A browser-first personal study tracker built with React, TypeScript, Vite, and IndexedDB. Starts with an empty **Semester 1 — Fall 2026**. No actual courses, lecture counts, or deadlines are preloaded.
 
+## Supabase cloud storage
+
+Optional private cloud storage and email/password sign-in are now implemented. The local `.env.local` is configured for your project and ignored by Git. **Complete the database and authentication setup in [supabase/README.md](supabase/README.md) before using cloud mode.** Run `supabase/setup.sql` in the project's SQL Editor. Cloud operation has not been verified against a signed-in live account yet. Browser-only mode remains available and existing browser records are preserved.
+
+For GitHub deployment, the workflow supplies the public client configuration described below. Reload to retrieve saves from another device; stale saves are rejected. Export backups separately.
+
+The deployment workflow now supplies this project's public Supabase URL and publishable key as defaults; repository Actions variables can override them. These client values are intentionally public. Owner-only database rules protect study records. Never substitute a secret or service-role key.
+
+## Private course catalog
+
+A generic additive course-catalog importer is available during local development. Its input is `private/course-catalog.json`, which is ignored by Git and excluded from the production build. When this file exists, the signed-in local cloud workspace imports it once per account/catalog ID on load. Existing course titles, completion, assessments, timers, notes and schedules are preserved. Missing course metadata, numbered units and resource links are added, with duplicate resources matched by Drive ID. A local marker prevents repeating the same import on later reloads. Browser-only mode never automatically imports it. A failed cloud save reports an error and can be retried by reloading.
+
+The endpoint is loopback-only, same-origin, development-only and uncached. Never expose the development server to the internet. Private data must remain outside `public/`, source imports and deployment assets. On the published website, the imported records load from the signed-in Supabase account; the catalog is not hosted there.
+
 ## Run on Windows
 
 Install Node.js 22 LTS or a newer supported LTS release, and Git. Open PowerShell in this project folder:
