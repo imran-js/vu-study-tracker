@@ -17,11 +17,23 @@ For a later feature, add a feature module and the necessary domain records. Avoi
 
 ## Schema and migrations
 
-Current domain schema: **2**. IndexedDB physical version: **1** (one `state` object store containing a revisioned dataset).
+Current domain schema: **3**. IndexedDB physical version: **1** (one `state` object store containing a revisioned dataset). Migration `2 → 3` adds empty daily plans, conservative planner preferences, active course planning defaults (VU001 inactive), and unknown assessment coverage. Existing records and stable IDs remain intact. Optional weak flags, course planning, assessment scope, marks and practice results need no database-table changes.
 
 The documented predecessor v1 is the same study schema without resource records or course folder URLs. Migration `1 → 2` adds empty resources and empty folder URLs. This is exercised by tests; no real older release is assumed to exist. New migrations must clone their input, preserve IDs and timestamps, run sequentially, and validate before persistence. Database load migrates supported older snapshots using the same migration runner, then commits atomically. Unsupported future versions fail safely without initializing over existing records.
 
 Backup envelope: `format`, `schemaVersion`, `exportedAt`, `applicationVersion`, `data`. The schema version controls compatibility; the application version is informational. `data` contains settings and all entity collections. Parsing strips fields outside the allowed schemas, so authorization tokens cannot become persisted resource fields. Backups should still be treated as private because they contain personal notes and links. Restore is a complete replacement with preview and explicit confirmation, using the same validated repository transaction. The application does not merge two datasets.
+
+## Daily planner domain
+
+`domain/planner-model.ts` holds planner and coverage schemas; `domain/planner.ts` holds pure rankings, recommendations, outcomes, plan-save/unlock rules and commit transition protection; `domain/readiness.ts` maps only verified, explicitly aligned numbered scope to existing included units. The UI is `features/planner/Planner.tsx`, embedded in Today and Settings; Calendar includes daily plans alongside sessions. No second planner store exists.
+
+Daily plans store immutable assignment snapshots (course/unit associations, focus text, minutes, source/reason, notes, day/zone and saved maximum), mutable explicit outcome/session links, and lock/unlock audit history. Confirming Today persists the lock; merely displaying recommendations never writes a plan. Application commits compare before/after plans: locked assignments require a separately saved unlock, while past plans cannot be rewritten or moved. Full restore is an explicit exception only after existing restore confirmation. Raw schema validation also checks unique semester/date, Main/Secondary roles, distinct courses, workload caps and related semester/course/unit/session integrity.
+
+Past Missed/Partial outcomes are computed from the unchanged dated record, explicit item states and linked actual time, rather than rewriting historical assignments on each load. No autonomous rollover job is required. Recommendation recovery considers prior unfinished work with capped priority influence, never accumulating extra daily minutes. New deadlines/flags update only the live recommendation and unrelated data; a locked plan's snapshot is untouched.
+
+`app/planner-actions.ts` creates/reuses ordinary study sessions for timer and quick-minute logging. Existing interval/timezone/overlap validation remains authoritative. Plan outcome does not imply actual time, and neither implies academic completion. Revision events remain distinct from manually sourced practice results. Course status is explicit; no fabricated behind score based on incomparable course denominators.
+
+The maximum is captured per saved plan so changing today's settings does not invalidate historical or locked assignments. New plans use the current limit, including already scheduled sessions. Recommendation split is 70/30 and capped by normal/light budget. All score factors and deductions are visible. Unknown dates or scope do not generate fake percentages.
 
 ## Private cloud storage
 

@@ -5,6 +5,7 @@ import { stamp, type Dataset, type Deadline } from "../domain/model";
 import { localInput, localToInstant } from "../domain/dates";
 import { revise, startTimer } from "./actions";
 import { driveFileId } from "../integrations/google-drive";
+import { sourceTypes, unknownCoverage } from "../domain/planner-model";
 
 type Values = Record<string, string>;
 function original(d: Dataset, r: EditorRequest): Values {
@@ -57,6 +58,25 @@ function original(d: Dataset, r: EditorRequest): Values {
     );
   if (r.kind === "lecture" && record)
     defaults.excluded = String(d.lectures.find((l) => l.id === r.id)!.excluded);
+  if (r.kind === "lecture")
+    defaults.needsRevision = String(
+      d.lectures.find((l) => l.id === r.id)?.needsRevision || false,
+    );
+  if (r.kind === "course") {
+    const p = d.courses.find((c) => c.id === r.id)?.planning;
+    defaults.planningActive = String(p?.active ?? true);
+    defaults.planningStatus = p?.status || "On track";
+    defaults.planningReason = p?.reason || "";
+    defaults.catchUpMinutes = String(p?.catchUpMinutes || 0);
+  }
+  if (r.kind === "assessment") {
+    const a = d.assessments.find((a) => a.id === r.id);
+    const coverage = a?.coverage || unknownCoverage();
+    for (const [key, val] of Object.entries(coverage))
+      if (val !== undefined) defaults[`coverage_${key}`] = String(val);
+    defaults.practicePercent = a?.practice?.percent.toString() || "";
+    defaults.practiceSource = a?.practice?.sourceNote || "";
+  }
   if (r.kind === "revision") defaults.nextRevision = "";
   if (r.kind === "resource" && record)
     defaults.tags = d.resources.find((x) => x.id === r.id)!.tags.join(", ");
@@ -223,6 +243,30 @@ export function Editor({
           })}
           {field("folderUrl", "Google Drive folder URL", { type: "url" })}
           {field("notes", "Short course notes", { type: "textarea" })}
+          {select("planningActive", "Include in daily planner", [
+            { id: "true", label: "Active" },
+            { id: "false", label: "Completed / inactive" },
+          ])}
+          {select(
+            "planningStatus",
+            "Planning status",
+            [
+              "On track",
+              "Needs attention",
+              "Behind",
+              "Temporarily high priority",
+            ].map((id) => ({ id, label: id })),
+          )}
+          {field("planningReason", "Reason for planning status", {
+            type: "textarea",
+            hint: "Affects tomorrow onward. A locked Today plan stays unchanged.",
+          })}
+          {field("catchUpMinutes", "Catch-up need (minutes)", {
+            type: "number",
+            min: 0,
+            max: 180,
+            hint: "Priority signal only; extra work is spread across days within the daily limit.",
+          })}
         </>
       );
       break;
@@ -241,6 +285,10 @@ export function Editor({
           {select("excluded", "Progress tracking", [
             { id: "false", label: "Included" },
             { id: "true", label: "Excluded" },
+          ])}
+          {select("needsRevision", "Weak-area / revision flag", [
+            { id: "false", label: "No flag" },
+            { id: "true", label: "Needs revision" },
           ])}
         </>
       );
@@ -299,6 +347,113 @@ export function Editor({
           )}
           {field("sourceUrl", "Source link (optional)", { type: "url" })}
           {field("notes", "Notes", { type: "textarea" })}
+          <details
+            className="span-2 coverage-editor"
+            open={v.coverage_type !== "unknown" || !!v.practicePercent}
+          >
+            <summary>Coverage, source and practice details</summary>
+            <div className="form-grid">
+              <p className="span-2 form-note">
+                Dates do not establish syllabus coverage. Leave coverage
+                awaiting announcement until VU confirms it. Numbered topics must
+                match the tracked study units explicitly; handout chapters and
+                video topics may differ.
+              </p>
+              {select(
+                "coverage_type",
+                "Coverage type",
+                ["unknown", "text", "numbered"].map((id) => ({
+                  id,
+                  label: id,
+                })),
+              )}
+              {select(
+                "coverage_verification",
+                "Coverage verification",
+                ["awaiting", "provisional", "verified"].map((id) => ({
+                  id,
+                  label: id,
+                })),
+              )}
+              {field("coverage_officialText", "Official coverage text", {
+                type: "textarea",
+              })}
+              {v.coverage_type === "numbered" && (
+                <>
+                  {field("coverage_startUnit", "Start unit/topic", {
+                    type: "number",
+                    min: 1,
+                    max: 2000,
+                    required: true,
+                  })}
+                  {field("coverage_endUnit", "End unit/topic", {
+                    type: "number",
+                    min: 1,
+                    max: 2000,
+                    required: true,
+                  })}
+                </>
+              )}
+              {select("coverage_mapping", "Coverage-to-tracker mapping", [
+                {
+                  id: "unconfirmed",
+                  label: "Not confirmed / different numbering",
+                },
+                {
+                  id: "direct",
+                  label: "I confirmed these numbers match the tracked units",
+                },
+              ])}
+              {field("coverage_readingDependency", "Reading dependency text", {
+                type: "textarea",
+              })}
+              {field(
+                "coverage_readingStart",
+                "Reading range start (optional)",
+                {
+                  type: "number",
+                  min: 1,
+                },
+              )}
+              {field("coverage_readingEnd", "Reading range end (optional)", {
+                type: "number",
+                min: 1,
+              })}
+              {field("marks", "Marks (optional)", {
+                type: "number",
+                min: 0,
+                max: 100000,
+                step: "0.5",
+              })}
+              {select(
+                "coverage_sourceType",
+                "Coverage source type",
+                sourceTypes.map((id) => ({ id, label: id })),
+              )}
+              {field(
+                "coverage_sourceNote",
+                "Coverage source note / reference",
+                {
+                  type: "textarea",
+                  required: v.coverage_verification === "verified",
+                },
+              )}
+              {field(
+                "practicePercent",
+                "Practice mastery % (manually recorded)",
+                {
+                  type: "number",
+                  min: 0,
+                  max: 100,
+                  step: "0.1",
+                  hint: "Optional practice result, separate from studying and revision. Never calculated from completion.",
+                },
+              )}
+              {field("practiceSource", "Practice result source / reference", {
+                required: !!v.practicePercent,
+              })}
+            </div>
+          </details>
         </>
       );
       break;
@@ -427,6 +582,12 @@ export function Editor({
             lectureTotal: numeric("lectureTotal"),
             notes: value("notes"),
             folderUrl: value("folderUrl").trim(),
+            planning: {
+              active: value("planningActive") === "true",
+              status: value("planningStatus") as "On track",
+              reason: value("planningReason"),
+              catchUpMinutes: Number(value("catchUpMinutes") || 0),
+            },
           });
         if (r.kind === "lecture") {
           const previous = d.lectures.find((l) => l.id === r.id);
@@ -442,6 +603,7 @@ export function Editor({
                 : undefined,
             excluded: value("excluded") === "true",
             nextRevision: optional("nextRevision"),
+            needsRevision: value("needsRevision") === "true",
           });
         }
         if (r.kind === "revision") revise(d, r.id!, optional("nextRevision"));
@@ -474,6 +636,33 @@ export function Editor({
             completedAt: ["submitted", "completed"].includes(value("status"))
               ? previous?.completedAt || now
               : undefined,
+            coverage: {
+              type: value("coverage_type") as "unknown",
+              verification: value("coverage_verification") as "awaiting",
+              officialText: value("coverage_officialText"),
+              startUnit: numeric("coverage_startUnit"),
+              endUnit: numeric("coverage_endUnit"),
+              mapping: value("coverage_mapping") as "unconfirmed",
+              readingDependency: value("coverage_readingDependency"),
+              readingStart: numeric("coverage_readingStart"),
+              readingEnd: numeric("coverage_readingEnd"),
+              sourceType: value("coverage_sourceType") as "VULMS",
+              sourceNote: value("coverage_sourceNote"),
+            },
+            marks: numeric("marks"),
+            practice:
+              optional("practicePercent") !== undefined
+                ? {
+                    percent: Number(value("practicePercent")),
+                    sourceNote: value("practiceSource"),
+                    recordedAt:
+                      previous?.practice?.percent ===
+                        Number(value("practicePercent")) &&
+                      previous.practice.sourceNote === value("practiceSource")
+                        ? previous.practice.recordedAt
+                        : now,
+                  }
+                : undefined,
           });
         }
         if (r.kind === "session" || r.kind === "manual") {

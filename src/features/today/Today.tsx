@@ -1,16 +1,9 @@
-import {
-  Plus,
-  ArrowUpRight,
-  Clock3,
-  BookOpen,
-  CalendarDays,
-  CheckCircle2,
-  RotateCcw,
-} from "lucide-react";
+import { Plus, Clock3, BookOpen, CalendarDays, RotateCcw } from "lucide-react";
+import { DailyPlanner } from "../planner/Planner";
+import { assessmentPlanningDay } from "../../domain/planner";
 import { useStudy } from "../../app/context";
 import { Empty, PageHeading, Pill } from "../../shared/ui";
 import {
-  deadlineDay,
   deadlineLabel,
   duration,
   isOverdue,
@@ -21,7 +14,7 @@ import {
 import { progress } from "../../domain/progress";
 import { SessionRow } from "../sessions/Sessions";
 export function Today() {
-  const { data: d, semesterId, edit } = useStudy();
+  const { data: d, semesterId, edit, cloud } = useStudy();
   const zone = d.settings.timezone;
   const day = today(zone);
   const courses = d.courses.filter((c) => c.semesterId === semesterId);
@@ -35,11 +28,16 @@ export function Today() {
   const overdue = open.filter((a) => isOverdue(a.deadline, zone));
   const dueToday = open.filter(
     (a) =>
-      !isOverdue(a.deadline, zone) && deadlineDay(a.deadline, zone) === day,
+      !isOverdue(a.deadline, zone) && assessmentPlanningDay(d, a, day) === day,
   );
   const upcoming = open.filter((a) => {
-    const date = deadlineDay(a.deadline, zone);
-    return date && date > day && date <= addDays(day, 7);
+    const date = assessmentPlanningDay(d, a, day);
+    return (
+      !isOverdue(a.deadline, zone) &&
+      date &&
+      date > day &&
+      date <= addDays(day, 7)
+    );
   });
   const sortDue = (a: (typeof open)[number], b: (typeof open)[number]) => {
     const key = (x: typeof a) =>
@@ -83,47 +81,7 @@ export function Today() {
       >
         Pick your next step. Keep a steady rhythm.
       </PageHeading>
-      <section className="today-hero">
-        <div>
-          <div className="hero-label">
-            <span className="live-dot" />
-            YOUR STUDY DESK
-          </div>
-          <h2>
-            Make space
-            <br />
-            for what’s next.
-          </h2>
-          <p>
-            {courses.length
-              ? `${courses.length} courses in focus. Your plan is yours to shape.`
-              : "Start with your courses. Build your semester one lecture at a time."}
-          </p>
-          <button
-            className="light-button"
-            onClick={() =>
-              edit({ kind: courses.length ? "session" : "course" })
-            }
-          >
-            {courses.length ? "Schedule study time" : "Add your first course"}
-            <ArrowUpRight size={17} />
-          </button>
-        </div>
-        <div className="hero-art" aria-hidden="true">
-          <div className="orbit orbit-one" />
-          <div className="orbit orbit-two" />
-          <div className="art-card">
-            <span />
-            <span />
-            <span />
-            <BookOpen size={44} />
-          </div>
-          <div className="art-check">
-            <CheckCircle2 size={27} />
-          </div>
-          <div className="art-spark">✦</div>
-        </div>
-      </section>
+      <DailyPlanner />
       <div className="stats-grid">
         <Stat
           icon={<Clock3 size={20} />}
@@ -203,6 +161,7 @@ export function Today() {
                     <span className="meta">
                       {courses.find((c) => c.id === a.courseId)?.code} ·{" "}
                       {deadlineLabel(a.deadline, zone)}
+                      {a.opensOn && ` · Opens ${a.opensOn}`}
                     </span>
                   </span>
                   <Pill tone={overdue.includes(a) ? "danger" : ""}>
@@ -269,8 +228,10 @@ export function Today() {
         </section>
       </div>
       <p className="page-footnote">
-        Your records stay in this browser. Export a backup regularly in Settings
-        & Data.
+        {cloud
+          ? "Your records are saved to your private cloud account."
+          : "Your records stay in this browser."}{" "}
+        Export a backup regularly in Settings & Data.
       </p>
     </>
   );

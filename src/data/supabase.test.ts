@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { SupabaseRepository } from "./supabase";
-import { initialData } from "../domain/model";
+import { initialData, stamp } from "../domain/model";
+import { saveDayPlan, recommendDay } from "../domain/planner";
 
 function mock(
   user = "owner",
@@ -22,6 +23,41 @@ function mock(
   return { client: client as unknown as SupabaseClient, rpc };
 }
 describe("cloud snapshot saves", () => {
+  it("accepts and transmits schema 3 daily plans through the same owner-scoped RPC", async () => {
+    const { client, rpc } = mock();
+    const data = initialData();
+    const semesterId = data.settings.activeSemesterId;
+    data.courses.push({
+      ...stamp(),
+      semesterId,
+      code: "TEST",
+      title: "Synthetic",
+      priority: "normal",
+      notes: "",
+      folderUrl: "",
+    });
+    const date = new Intl.DateTimeFormat("en-CA", {
+      timeZone: data.settings.timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    saveDayPlan(
+      data,
+      semesterId,
+      date,
+      recommendDay(data, semesterId, date).items,
+      "Cloud planner test",
+      true,
+    );
+    const result = await new SupabaseRepository(client, "owner").replace(
+      data,
+      1,
+    );
+    expect(result.data.schemaVersion).toBe(3);
+    expect(result.data.dailyPlans).toHaveLength(1);
+    expect(rpc.mock.calls[0][1].payload.dailyPlans[0].locked).toBe(true);
+  });
   it("validates and sends the expected revision to the server", async () => {
     const { client, rpc } = mock();
     const data = initialData();

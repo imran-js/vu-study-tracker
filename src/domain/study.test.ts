@@ -312,7 +312,7 @@ describe("resources, backups, and migrations", () => {
     const v1 = { ...d, schemaVersion: 1 } as Record<string, unknown>;
     delete v1.resources;
     const migrated = migrateData(v1);
-    expect(migrated.schemaVersion).toBe(2);
+    expect(migrated.schemaVersion).toBe(3);
     expect(migrated.resources).toEqual([]);
     expect(v1.schemaVersion).toBe(1);
   });

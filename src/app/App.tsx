@@ -138,7 +138,11 @@ export default function App({
     }
   }, [notice]);
   const run = useCallback(
-    async (mutate: (d: Dataset) => void, message = "Saved") => {
+    async (
+      mutate: (d: Dataset) => void,
+      message = "Saved",
+      options?: { restore?: boolean },
+    ) => {
       if (!latest.current || saving.current) {
         setNotice({
           text: "A save is in progress. Please try again.",
@@ -149,7 +153,7 @@ export default function App({
       saving.current = true;
       setNotice({ text: cloud ? "Saving to cloud…" : "Saving…", error: false });
       try {
-        const next = await commit(repository, latest.current, mutate);
+        const next = await commit(repository, latest.current, mutate, options);
         latest.current = next;
         setSnapshot(next);
         setNotice({ text: message, error: false });

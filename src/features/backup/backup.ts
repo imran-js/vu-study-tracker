@@ -7,7 +7,7 @@ export function exportBackup(data: Dataset, at = new Date().toISOString()) {
       format: "vu-study-desk",
       schemaVersion: data.schemaVersion,
       exportedAt: at,
-      applicationVersion: "1.0.0",
+      applicationVersion: "1.1.0",
       data,
     },
     null,

@@ -1890,3 +1890,69 @@ label small {
 .cloud-login > button {
   margin: 12px 12px 0 0;
 }
+
+.daily-planner,
+.tomorrow-preview {
+  margin-bottom: 24px;
+}
+.daily-items,
+.course-status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.daily-item,
+.course-status {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 18px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.daily-item .meta,
+.course-status .meta,
+.tomorrow-preview .meta {
+  line-height: 1.7;
+}
+.daily-item h3 {
+  font-size: 20px;
+}
+.planner-actions {
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.assessment-readiness {
+  border-top: 1px solid var(--line);
+  margin-top: 12px;
+  padding-top: 10px;
+}
+.assessment-readiness p {
+  margin-bottom: 8px;
+}
+.daily-planner .section-heading,
+.tomorrow-preview .section-heading {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+fieldset {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px;
+}
+details {
+  overflow-wrap: anywhere;
+}
+summary {
+  cursor: pointer;
+  line-height: 1.8;
+}
+@media (max-width: 700px) {
+  .daily-items,
+  .course-status-grid {
+    grid-template-columns: 1fr;
+  }
+  .planner-actions button {
+    flex: 1 1 auto;
+  }
+}

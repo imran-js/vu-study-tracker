@@ -6,14 +6,17 @@ import {
   type Interval,
 } from "../domain/model";
 import type { Snapshot, StudyRepository } from "../data/contracts";
+import { assertPlanTransitions } from "../domain/planner";
 
 export async function commit(
   repository: StudyRepository,
   snapshot: Snapshot,
   mutate: (d: Dataset) => void,
+  options?: { restore?: boolean },
 ): Promise<Snapshot> {
   const next = structuredClone(snapshot.data);
   mutate(next);
+  if (!options?.restore) assertPlanTransitions(snapshot.data, next);
   return repository.replace(validateData(next), snapshot.revision);
 }
 export function setLectureStatus(
@@ -37,6 +40,7 @@ export function revise(d: Dataset, id: string, nextRevision?: string) {
     revisedAt: new Date().toISOString(),
   });
   l.nextRevision = nextRevision;
+  l.needsRevision = false;
   l.updatedAt = new Date().toISOString();
 }
 export function generateLectures(d: Dataset, courseId: string) {

@@ -12,6 +12,7 @@ import { useStudy } from "../../app/context";
 import { PageHeading, Modal, Pill } from "../../shared/ui";
 import { exportBackup, parseBackup } from "../backup/backup";
 import type { Dataset } from "../../domain/model";
+import { PlannerSettings } from "../planner/Planner";
 export function downloadBackup(data: Dataset, prefix = "study-desk-backup") {
   const url = URL.createObjectURL(
     new Blob([exportBackup(data)], { type: "application/json" }),
@@ -74,6 +75,7 @@ export function Settings() {
         Your semesters, preferences, and a safe copy of your work.
       </PageHeading>
       <div className="settings-grid">
+        <PlannerSettings key={JSON.stringify(d.settings.planner)} />
         <section className="panel">
           <div className="section-heading">
             <h2>Study preferences</h2>
@@ -365,11 +367,17 @@ export function Settings() {
                   )
                 )
                   return;
-                const ok = await run((current) => {
-                  for (const key of Object.keys(current))
-                    delete (current as unknown as Record<string, unknown>)[key];
-                  Object.assign(current, structuredClone(backup));
-                }, "Backup restored successfully");
+                const ok = await run(
+                  (current) => {
+                    for (const key of Object.keys(current))
+                      delete (current as unknown as Record<string, unknown>)[
+                        key
+                      ];
+                    Object.assign(current, structuredClone(backup));
+                  },
+                  "Backup restored successfully",
+                  { restore: true },
+                );
                 if (ok) setBackup(undefined);
               }}
             >

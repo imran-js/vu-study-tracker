@@ -17,7 +17,11 @@ export type EditorRequest = {
 };
 export interface StudyContextValue {
   data: Dataset;
-  run: (mutate: (d: Dataset) => void, message?: string) => Promise<boolean>;
+  run: (
+    mutate: (d: Dataset) => void,
+    message?: string,
+    options?: { restore?: boolean },
+  ) => Promise<boolean>;
   edit: (request: EditorRequest) => void;
   semesterId: string;
   saveError?: string;

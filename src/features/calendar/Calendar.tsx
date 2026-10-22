@@ -13,6 +13,7 @@ import {
 } from "../../domain/dates";
 import { Empty, PageHeading } from "../../shared/ui";
 import { SessionRow } from "../sessions/Sessions";
+import { planOutcome } from "../../domain/planner";
 export function Calendar() {
   const { data: d, semesterId, edit, run } = useStudy();
   const [anchor, setAnchor] = useState(today(d.settings.timezone));
@@ -34,8 +35,10 @@ export function Calendar() {
   const sessions = d.sessions.filter(
     (s) => s.semesterId === semesterId && s.status !== "cancelled",
   );
+  const dailyPlans = d.dailyPlans.filter((p) => p.semesterId === semesterId);
   const hasItems = days.some(
     (day) =>
+      dailyPlans.some((p) => p.day === day) ||
       assessments.some((a) => deadlineDay(a.deadline, zone) === day) ||
       sessions.some(
         (s) => s.plannedStart && dayOf(s.plannedStart, zone) === day,
@@ -122,6 +125,23 @@ export function Calendar() {
                       </span>
                       <strong>{p.day}</strong>
                     </div>
+                    {dailyPlans
+                      .filter((p) => p.day === day)
+                      .map((p) => (
+                        <details key={p.id} className="calendar-event">
+                          <summary>
+                            Daily plan · {p.locked ? "Locked" : "Draft"} ·{" "}
+                            {planOutcome(d, p)}
+                          </summary>
+                          {p.items.map((i) => (
+                            <p key={i.role}>
+                              {i.role} ·{" "}
+                              {courses.find((c) => c.id === i.courseId)?.code} ·{" "}
+                              {i.minutes} min · {i.focus}
+                            </p>
+                          ))}
+                        </details>
+                      ))}
                     {assessments
                       .filter((a) => deadlineDay(a.deadline, zone) === day)
                       .map((a) => (
@@ -189,9 +209,24 @@ export function Calendar() {
               const ss = sessions.filter(
                 (s) => s.plannedStart && dayOf(s.plannedStart, zone) === day,
               );
-              return aa.length || ss.length ? (
+              const pp = dailyPlans.filter((p) => p.day === day);
+              return aa.length || ss.length || pp.length ? (
                 <section key={day} className="agenda-day">
                   <h3>{day}</h3>
+                  {pp.map((p) => (
+                    <div className="agenda-assessment" key={p.id}>
+                      Daily plan · {p.locked ? "Locked" : "Draft"} ·{" "}
+                      {planOutcome(d, p)}
+                      <span>
+                        {p.items
+                          .map(
+                            (i) =>
+                              `${i.role}: ${courses.find((c) => c.id === i.courseId)?.code} ${i.minutes} min`,
+                          )
+                          .join(" · ")}
+                      </span>
+                    </div>
+                  ))}
                   {aa.map((a) => (
                     <button
                       className="agenda-assessment"

@@ -3,6 +3,7 @@ import { Plus, Pencil } from "lucide-react";
 import { useStudy } from "../../app/context";
 import { Empty, PageHeading, Pill, ExternalLink } from "../../shared/ui";
 import { deadlineDay, deadlineLabel, isOverdue } from "../../domain/dates";
+import { Readiness } from "./Readiness";
 export function AssessmentList({
   courseId,
   filter = "all",
@@ -47,9 +48,11 @@ export function AssessmentList({
               <h3>{a.title}</h3>
               <p className="meta">
                 {deadlineLabel(a.deadline, d.settings.timezone)}
+                {a.opensOn && ` · Opens ${a.opensOn}`}
                 {a.endsAt && " · end time set"}
               </p>
               {a.notes && <p className="prewrap muted">{a.notes}</p>}
+              <Readiness assessment={a} />
               {a.sourceUrl && (
                 <ExternalLink url={a.sourceUrl}>Source</ExternalLink>
               )}

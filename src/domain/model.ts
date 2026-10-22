@@ -1,5 +1,12 @@
 import { z } from "zod";
 import { Temporal } from "@js-temporal/polyfill";
+import {
+  coverageSchema,
+  coursePlanningSchema,
+  dailyPlanSchema,
+  plannerSettingsSchema,
+  defaultPlannerSettings,
+} from "./planner-model";
 
 const id = z.string().min(1).max(200);
 const text = z.string().max(20000);
@@ -75,6 +82,7 @@ export const courseSchema = z.object({
   lectureTotal: z.number().int().min(0).max(2000).optional(),
   notes: text,
   folderUrl: z.union([z.literal(""), driveUrl]),
+  planning: coursePlanningSchema.optional(),
 });
 export const lectureSchema = z.object({
   ...base,
@@ -85,6 +93,7 @@ export const lectureSchema = z.object({
   completedAt: instant.optional(),
   excluded: z.boolean(),
   nextRevision: date.optional(),
+  needsRevision: z.boolean().optional(),
 });
 export const revisionSchema = z.object({
   ...base,
@@ -115,6 +124,15 @@ export const assessmentSchema = z.object({
     "cancelled",
   ]),
   completedAt: instant.optional(),
+  coverage: coverageSchema.optional(),
+  marks: z.number().min(0).max(100000).optional(),
+  practice: z
+    .object({
+      percent: z.number().min(0).max(100),
+      recordedAt: instant,
+      sourceNote: z.string().trim().min(1).max(20000),
+    })
+    .optional(),
 });
 export const intervalSchema = z.object({ start: instant, end: instant });
 export const sessionSchema = z.object({
@@ -153,9 +171,11 @@ export const settingsSchema = z.object({
   activeSemesterId: id,
   lastExportAt: instant.optional(),
   onboarded: z.boolean(),
+  planner: plannerSettingsSchema,
 });
+export const planSchema = dailyPlanSchema(id, instant, date, zone);
 export const datasetSchema = z.object({
-  schemaVersion: z.literal(2),
+  schemaVersion: z.literal(3),
   settings: settingsSchema,
   semesters: z.array(semesterSchema),
   courses: z.array(courseSchema),
@@ -165,6 +185,7 @@ export const datasetSchema = z.object({
   assessments: z.array(assessmentSchema),
   sessions: z.array(sessionSchema),
   resources: z.array(resourceSchema),
+  dailyPlans: z.array(planSchema),
   timer: timerSchema.optional(),
 });
 export type Dataset = z.infer<typeof datasetSchema>;
@@ -175,6 +196,7 @@ export type Session = z.infer<typeof sessionSchema>;
 export type Resource = z.infer<typeof resourceSchema>;
 export type Deadline = z.infer<typeof deadlineSchema>;
 export type Interval = z.infer<typeof intervalSchema>;
+export type DailyPlan = z.infer<typeof planSchema>;
 export function stamp() {
   const now = new Date().toISOString();
   return { id: crypto.randomUUID(), createdAt: now, updatedAt: now };
@@ -186,12 +208,13 @@ export function initialData(): Dataset {
     archived: false,
   };
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     settings: {
       timezone: "Asia/Riyadh",
       weekStart: 1,
       activeSemesterId: semester.id,
       onboarded: false,
+      planner: { ...defaultPlannerSettings },
     },
     semesters: [semester],
     courses: [],
@@ -204,6 +227,7 @@ export function initialData(): Dataset {
     assessments: [],
     sessions: [],
     resources: [],
+    dailyPlans: [],
   };
 }
 
@@ -222,6 +246,7 @@ export function validateData(input: unknown): Dataset {
     d.assessments,
     d.sessions,
     d.resources,
+    d.dailyPlans,
   ])
     for (const r of rows) {
       ensure(!allIds.has(r.id), "Duplicate record ID");
@@ -295,6 +320,48 @@ export function validateData(input: unknown): Dataset {
       !r.lectureId || lectures.get(r.lectureId)?.courseId === r.courseId,
       "Resource lecture must belong to its course",
     );
+  }
+  const planDays = new Set<string>();
+  for (const plan of d.dailyPlans) {
+    ensure(semesters.has(plan.semesterId), "Plan semester is missing");
+    const key = `${plan.semesterId}:${plan.day}`;
+    ensure(!planDays.has(key), "Duplicate daily plan for semester/date");
+    planDays.add(key);
+    ensure(
+      plan.items[0].role === "Main" &&
+        (plan.items.length === 1 || plan.items[1].role === "Secondary"),
+      "A plan needs one Main and at most one Secondary item",
+    );
+    ensure(
+      new Set(plan.items.map((i) => i.courseId)).size === plan.items.length,
+      "Main and Secondary must be different courses",
+    );
+    ensure(
+      plan.items.reduce((s, i) => s + i.minutes, 0) <= plan.maximumMinutes,
+      "Daily plan exceeds its workload limit",
+    );
+    ensure(
+      !plan.locked || plan.lockHistory.at(-1)?.action === "locked",
+      "Locked plan needs explicit confirmation history",
+    );
+    for (const item of plan.items) {
+      ensure(
+        courses.get(item.courseId)?.semesterId === plan.semesterId,
+        "Plan course must belong to its semester",
+      );
+      ensure(
+        !item.lectureId ||
+          lectures.get(item.lectureId)?.courseId === item.courseId,
+        "Plan lecture must belong to its course",
+      );
+      const session = d.sessions.find((s) => s.id === item.sessionId);
+      ensure(
+        !item.sessionId ||
+          (session?.semesterId === plan.semesterId &&
+            session?.courseId === item.courseId),
+        "Plan session must belong to its course and semester",
+      );
+    }
   }
   const intervals: { start: number; end: number }[] = [];
   function checkInterval(i: Interval) {

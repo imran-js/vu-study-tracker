@@ -58,6 +58,8 @@ export default defineConfig({
         manualChunks: {
           temporal: ["@js-temporal/polyfill"],
           validation: ["zod"],
+          react: ["react", "react-dom"],
+          supabase: ["@supabase/supabase-js"],
         },
       },
     },

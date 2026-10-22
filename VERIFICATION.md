@@ -1,5 +1,9 @@
 # Release verification
 
+## Semester planner — version 1.1.0, 23 October 2026
+
+See [PLANNER-VERIFICATION.md](PLANNER-VERIFICATION.md) for the complete feature, migration, test, browser and changed-file report. Schema 3 preserves pre-patch records. The suite now contains 55 passing tests; production build passes without warnings. Isolated desktop/mobile checks verified locked Today remains unchanged after an urgent assessment, Tomorrow changes appropriately, explicit unlock/replan/relock persists, unknown coverage stays unknown, verified scope shows separate studied/revised counts, and light-day draft planning works. The existing five-course catalog and its 341 units/387 links validate and survive migration. Authenticated live schema-3 cloud saving and cross-device conflict handling remain user-session manual checks; no test data was written to the real cloud account.
+
 ## Cloud and course import update — 23 October 2026
 
 - 35 automated tests pass; production build passes. GitHub Actions also passed dependency installation, tests, build and artifact upload for commit `dcb063c`.
