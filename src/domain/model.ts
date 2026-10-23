@@ -1,3 +1,10 @@
+import {
+  calendarSettingsSchema,
+  calendarMappingSchema,
+  alertReceiptSchema,
+  defaultCalendarSettings,
+  defaultCalendarEligible,
+} from "./calendar-model";
 import { z } from "zod";
 import { Temporal } from "@js-temporal/polyfill";
 import {
@@ -100,7 +107,11 @@ export const revisionSchema = z.object({
   lectureId: id,
   revisedAt: instant,
 });
-export const typeSchema = z.object({ ...base, label: title });
+export const typeSchema = z.object({
+  ...base,
+  label: title,
+  calendarEligible: z.boolean().optional(),
+});
 export const deadlineSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("none") }),
   z.object({ kind: z.literal("date"), date }),
@@ -125,6 +136,14 @@ export const assessmentSchema = z.object({
   ]),
   completedAt: instant.optional(),
   coverage: coverageSchema.optional(),
+  calendarEligible: z.boolean().optional(),
+  dateConfirmation: z
+    .object({
+      signature: z.string().max(2000),
+      source: z.string().trim().min(1).max(2000),
+      at: instant,
+    })
+    .optional(),
   marks: z.number().min(0).max(100000).optional(),
   practice: z
     .object({
@@ -172,10 +191,11 @@ export const settingsSchema = z.object({
   lastExportAt: instant.optional(),
   onboarded: z.boolean(),
   planner: plannerSettingsSchema,
+  googleCalendar: calendarSettingsSchema,
 });
 export const planSchema = dailyPlanSchema(id, instant, date, zone);
 export const datasetSchema = z.object({
-  schemaVersion: z.literal(3),
+  schemaVersion: z.literal(4),
   settings: settingsSchema,
   semesters: z.array(semesterSchema),
   courses: z.array(courseSchema),
@@ -186,6 +206,8 @@ export const datasetSchema = z.object({
   sessions: z.array(sessionSchema),
   resources: z.array(resourceSchema),
   dailyPlans: z.array(planSchema),
+  calendarMappings: z.array(calendarMappingSchema),
+  alertReceipts: z.array(alertReceiptSchema),
   timer: timerSchema.optional(),
 });
 export type Dataset = z.infer<typeof datasetSchema>;
@@ -208,13 +230,14 @@ export function initialData(): Dataset {
     archived: false,
   };
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     settings: {
       timezone: "Asia/Riyadh",
       weekStart: 1,
       activeSemesterId: semester.id,
       onboarded: false,
       planner: { ...defaultPlannerSettings },
+      googleCalendar: defaultCalendarSettings(),
     },
     semesters: [semester],
     courses: [],
@@ -223,11 +246,14 @@ export function initialData(): Dataset {
     types: ["Assignment", "Quiz", "GDB", "Exam"].map((label) => ({
       ...stamp(),
       label,
+      calendarEligible: defaultCalendarEligible(label),
     })),
     assessments: [],
     sessions: [],
     resources: [],
     dailyPlans: [],
+    calendarMappings: [],
+    alertReceipts: [],
   };
 }
 
@@ -236,6 +262,20 @@ function ensure(condition: unknown, message: string): asserts condition {
 }
 export function validateData(input: unknown): Dataset {
   const d = datasetSchema.parse(input);
+  ensure(
+    new Set(d.calendarMappings.map((m) => `${m.calendarId}:${m.assessmentId}`))
+      .size === d.calendarMappings.length,
+    "Duplicate Calendar mapping",
+  );
+  ensure(
+    new Set(d.calendarMappings.map((m) => `${m.calendarId}:${m.eventId}`))
+      .size === d.calendarMappings.length,
+    "Duplicate external event mapping",
+  );
+  ensure(
+    new Set(d.alertReceipts.map((r) => r.key)).size === d.alertReceipts.length,
+    "Duplicate alert receipt",
+  );
   const allIds = new Set<string>();
   for (const rows of [
     d.semesters,

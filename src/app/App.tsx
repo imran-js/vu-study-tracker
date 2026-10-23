@@ -1,3 +1,6 @@
+import { GoogleCalendarProvider } from "./calendar-context";
+import { Notifications } from "../features/notifications/Notifications";
+import { studyAlerts } from "../domain/alerts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BookOpen,
@@ -7,6 +10,7 @@ import {
   ChevronDown,
   FileText,
   Home,
+  Bell,
   Menu,
   Settings2,
   X,
@@ -40,6 +44,7 @@ const nav = [
   { id: "calendar", label: "Calendar", icon: CalendarDays },
   { id: "progress", label: "Progress", icon: ChartNoAxesCombined },
   { id: "resources", label: "Notes & Resources", icon: FileText },
+  { id: "notifications", label: "Notifications", icon: Bell },
   { id: "settings", label: "Settings & Data", icon: Settings2 },
 ];
 function route() {
@@ -200,8 +205,11 @@ export default function App({
   const semester = d.semesters.find(
     (s) => s.id === d.settings.activeSemesterId,
   )!;
+  const unread = studyAlerts(d, semester.id).filter((a) => !a.state).length;
   const content =
-    page === "courses" ? (
+    page === "notifications" ? (
+      <Notifications />
+    ) : page === "courses" ? (
       <Courses />
     ) : page === "assessments" ? (
       <Assessments />
@@ -220,6 +228,7 @@ export default function App({
     <StudyContext.Provider
       value={{
         data: d,
+        getData: () => latest.current!.data,
         cloud,
         semesterId: semester.id,
         run,
@@ -230,213 +239,228 @@ export default function App({
         saveError: notice?.error ? notice.text : undefined,
       }}
     >
-      <a
-        href="#main"
-        className="skip-link"
-        onClick={(e) => {
-          e.preventDefault();
-          main.current?.focus();
-        }}
-      >
-        Skip to content
-      </a>
-      <div className="app-shell">
-        <aside
-          ref={sidebar}
-          className={`sidebar ${menu ? "open" : ""}`}
-          aria-label="Main navigation"
+      <GoogleCalendarProvider>
+        <a
+          href="#main"
+          className="skip-link"
+          onClick={(e) => {
+            e.preventDefault();
+            main.current?.focus();
+          }}
         >
-          <a href="#/today" className="brand">
-            <span className="brand-icon">
-              <GraduationCap size={26} />
-            </span>
-            <span>
-              Study Desk<small>VIRTUAL UNIVERSITY</small>
-            </span>
-          </a>
-          <button
-            className="mobile-close icon-button"
-            aria-label="Close navigation"
-            onClick={() => setMenu(false)}
+          Skip to content
+        </a>
+        <div className="app-shell">
+          <aside
+            ref={sidebar}
+            className={`sidebar ${menu ? "open" : ""}`}
+            aria-label="Main navigation"
           >
-            <X size={21} />
-          </button>
-          <div className="sidebar-label">WORKSPACE</div>
-          <nav>
-            {nav.map(({ id, label, icon: Icon }) => (
-              <a
-                key={id}
-                href={`#/${id}`}
-                aria-current={page === id ? "page" : undefined}
-              >
-                <Icon size={19} />
-                {label}
-                {page === id && <span className="nav-dot" />}
-              </a>
-            ))}
-          </nav>
-          <div className="sidebar-bottom">
-            <div className="local-status">
-              <span />
-              {cloud ? "Saved to your private cloud" : "Saved on this browser"}
-            </div>
-            <p>
-              A steady pace.
-              <br />A semester of possibilities.
-            </p>
-            <a href="#/settings">
-              <CircleHelp size={16} />
-              Storage & backups
+            <a href="#/today" className="brand">
+              <span className="brand-icon">
+                <GraduationCap size={26} />
+              </span>
+              <span>
+                Study Desk<small>VIRTUAL UNIVERSITY</small>
+              </span>
             </a>
+            <button
+              className="mobile-close icon-button"
+              aria-label="Close navigation"
+              onClick={() => setMenu(false)}
+            >
+              <X size={21} />
+            </button>
+            <div className="sidebar-label">WORKSPACE</div>
+            <nav>
+              {nav.map(({ id, label, icon: Icon }) => (
+                <a
+                  key={id}
+                  href={`#/${id}`}
+                  aria-current={page === id ? "page" : undefined}
+                >
+                  <Icon size={19} />
+                  {label}
+                  {id === "notifications" && unread > 0 && (
+                    <span className="notification-count">{unread}</span>
+                  )}
+                  {page === id && <span className="nav-dot" />}
+                </a>
+              ))}
+            </nav>
+            <div className="sidebar-bottom">
+              <div className="local-status">
+                <span />
+                {cloud
+                  ? "Saved to your private cloud"
+                  : "Saved on this browser"}
+              </div>
+              <p>
+                A steady pace.
+                <br />A semester of possibilities.
+              </p>
+              <a href="#/settings">
+                <CircleHelp size={16} />
+                Storage & backups
+              </a>
+            </div>
+          </aside>
+          {menu && (
+            <button
+              className="menu-backdrop"
+              aria-label="Close navigation"
+              onClick={() => setMenu(false)}
+            />
+          )}
+          <div className="workspace" inert={menu}>
+            <header className="topbar">
+              <div className="topbar-left">
+                <button
+                  ref={menuButton}
+                  className="mobile-menu icon-button"
+                  aria-label="Open navigation"
+                  aria-expanded={menu}
+                  onClick={() => setMenu(!menu)}
+                >
+                  <Menu size={22} />
+                </button>
+                <div className="semester-control">
+                  <GraduationCap size={18} />
+                  <label className="sr-only" htmlFor="semester">
+                    Active semester
+                  </label>
+                  <select
+                    id="semester"
+                    value={semester.id}
+                    onChange={(e) => {
+                      setEditor(undefined);
+                      void run((d) => {
+                        d.settings.activeSemesterId = e.target.value;
+                      }, "Semester selected");
+                    }}
+                  >
+                    {d.semesters.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                        {s.archived ? " · Archived" : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown size={14} />
+                </div>
+              </div>
+              <a
+                className="notification-shortcut"
+                href="#/notifications"
+                aria-label={`Notifications, ${unread} unread`}
+              >
+                <Bell size={18} />
+                {unread > 0 && <span>{unread}</span>}
+              </a>
+              <div className="topbar-date">
+                <span>
+                  {new Date(
+                    `${today(d.settings.timezone)}T12:00:00Z`,
+                  ).toLocaleDateString("en", {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                    timeZone: "UTC",
+                  })}
+                </span>
+                <small>{d.settings.timezone}</small>
+              </div>
+            </header>
+            <main
+              id="main"
+              ref={main}
+              tabIndex={-1}
+              key={`${page}-${semester.id}`}
+            >
+              {semester.archived && (
+                <div className="notice archive-notice">
+                  Archived semester · Historical records remain available.
+                  Reopen it in Settings when you resume studying.
+                </div>
+              )}
+              {content}
+            </main>
+            <Timer
+              recovered={recovered}
+              clearRecovered={() => setRecovered(false)}
+            />
           </div>
-        </aside>
-        {menu && (
-          <button
-            className="menu-backdrop"
-            aria-label="Close navigation"
-            onClick={() => setMenu(false)}
+        </div>
+        {notice && (
+          <div
+            className={`toast ${notice.error ? "error-toast" : ""}`}
+            role={notice.error ? "alert" : "status"}
+          >
+            <span>{notice.text}</span>
+            <button
+              aria-label="Dismiss message"
+              className="icon-button"
+              onClick={() => setNotice(undefined)}
+            >
+              <X size={17} />
+            </button>
+          </div>
+        )}
+        {editor && (
+          <Editor
+            key={`${editor.kind}-${editor.id}-${editor.courseId}-${editor.lectureId}`}
+            request={editor}
+            close={() => setEditor(undefined)}
           />
         )}
-        <div className="workspace" inert={menu}>
-          <header className="topbar">
-            <div className="topbar-left">
-              <button
-                ref={menuButton}
-                className="mobile-menu icon-button"
-                aria-label="Open navigation"
-                aria-expanded={menu}
-                onClick={() => setMenu(!menu)}
-              >
-                <Menu size={22} />
-              </button>
-              <div className="semester-control">
-                <GraduationCap size={18} />
-                <label className="sr-only" htmlFor="semester">
-                  Active semester
-                </label>
-                <select
-                  id="semester"
-                  value={semester.id}
-                  onChange={(e) => {
-                    setEditor(undefined);
-                    void run((d) => {
-                      d.settings.activeSemesterId = e.target.value;
-                    }, "Semester selected");
-                  }}
-                >
-                  {d.semesters.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                      {s.archived ? " · Archived" : ""}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown size={14} />
-              </div>
-            </div>
-            <div className="topbar-date">
-              <span>
-                {new Date(
-                  `${today(d.settings.timezone)}T12:00:00Z`,
-                ).toLocaleDateString("en", {
-                  weekday: "short",
-                  month: "short",
-                  day: "numeric",
-                  timeZone: "UTC",
-                })}
-              </span>
-              <small>{d.settings.timezone}</small>
-            </div>
-          </header>
-          <main
-            id="main"
-            ref={main}
-            tabIndex={-1}
-            key={`${page}-${semester.id}`}
-          >
-            {semester.archived && (
-              <div className="notice archive-notice">
-                Archived semester · Historical records remain available. Reopen
-                it in Settings when you resume studying.
-              </div>
-            )}
-            {content}
-          </main>
-          <Timer
-            recovered={recovered}
-            clearRecovered={() => setRecovered(false)}
-          />
-        </div>
-      </div>
-      {notice && (
-        <div
-          className={`toast ${notice.error ? "error-toast" : ""}`}
-          role={notice.error ? "alert" : "status"}
-        >
-          <span>{notice.text}</span>
-          <button
-            aria-label="Dismiss message"
-            className="icon-button"
-            onClick={() => setNotice(undefined)}
-          >
-            <X size={17} />
-          </button>
-        </div>
-      )}
-      {editor && (
-        <Editor
-          key={`${editor.kind}-${editor.id}-${editor.courseId}-${editor.lectureId}`}
-          request={editor}
-          close={() => setEditor(undefined)}
-        />
-      )}
-      {!d.settings.onboarded && (
-        <Modal
-          title="Welcome to your Study Desk"
-          close={() =>
-            void run((d) => {
-              d.settings.onboarded = true;
-            })
-          }
-        >
-          <p>
-            A calm place to organize your Virtual University studies. Your first
-            semester is ready, with no invented courses or deadlines.
-          </p>
-          <div className="onboarding-note">
-            <strong>
-              {cloud
-                ? "Your records are saved to your private cloud account."
-                : "Your records live in this browser."}
-            </strong>
-            <p>
-              {cloud
-                ? "Sign in with the same account on another device to access your records. Cloud saves require an internet connection. Export backups regularly."
-                : "Devices, browsers, profiles, local development, and the published website have separate records. Clearing browser data can erase them."}
-            </p>
-            <p>
-              GitHub backs up your code. GitHub Pages hosts the app.{" "}
-              {cloud
-                ? "Supabase saves your study records under your signed-in account."
-                : "Neither saves or synchronizes your study records."}
-            </p>
-            <p>
-              Export backups in Settings & Data. They include resource links,
-              not Google Drive files.
-            </p>
-          </div>
-          <button
-            className="primary"
-            onClick={() =>
+        {!d.settings.onboarded && (
+          <Modal
+            title="Welcome to your Study Desk"
+            close={() =>
               void run((d) => {
                 d.settings.onboarded = true;
-              }, "Welcome. Add a course whenever you’re ready.")
+              })
             }
           >
-            Open my study desk
-          </button>
-        </Modal>
-      )}
+            <p>
+              A calm place to organize your Virtual University studies. Your
+              first semester is ready, with no invented courses or deadlines.
+            </p>
+            <div className="onboarding-note">
+              <strong>
+                {cloud
+                  ? "Your records are saved to your private cloud account."
+                  : "Your records live in this browser."}
+              </strong>
+              <p>
+                {cloud
+                  ? "Sign in with the same account on another device to access your records. Cloud saves require an internet connection. Export backups regularly."
+                  : "Devices, browsers, profiles, local development, and the published website have separate records. Clearing browser data can erase them."}
+              </p>
+              <p>
+                GitHub backs up your code. GitHub Pages hosts the app.{" "}
+                {cloud
+                  ? "Supabase saves your study records under your signed-in account."
+                  : "Neither saves or synchronizes your study records."}
+              </p>
+              <p>
+                Export backups in Settings & Data. They include resource links,
+                not Google Drive files.
+              </p>
+            </div>
+            <button
+              className="primary"
+              onClick={() =>
+                void run((d) => {
+                  d.settings.onboarded = true;
+                }, "Welcome. Add a course whenever you’re ready.")
+              }
+            >
+              Open my study desk
+            </button>
+          </Modal>
+        )}
+      </GoogleCalendarProvider>
     </StudyContext.Provider>
   );
 }

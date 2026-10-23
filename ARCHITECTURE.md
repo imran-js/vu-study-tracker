@@ -17,7 +17,7 @@ For a later feature, add a feature module and the necessary domain records. Avoi
 
 ## Schema and migrations
 
-Current domain schema: **3**. IndexedDB physical version: **1** (one `state` object store containing a revisioned dataset). Migration `2 → 3` adds empty daily plans, conservative planner preferences, active course planning defaults (VU001 inactive), and unknown assessment coverage. Existing records and stable IDs remain intact. Optional weak flags, course planning, assessment scope, marks and practice results need no database-table changes.
+Current domain schema: **4**. Migration `3 → 4` adds conservative Calendar preferences, empty external mappings and alert receipts, and stored type eligibility defaults. Date confirmations remain absent until explicitly verified. All existing records, IDs and locked plans are preserved. No Supabase SQL change is needed for the existing owner-scoped JSON snapshot. IndexedDB physical version: **1** (one `state` object store containing a revisioned dataset). Migration `2 → 3` adds empty daily plans, conservative planner preferences, active course planning defaults (VU001 inactive), and unknown assessment coverage. Existing records and stable IDs remain intact. Optional weak flags, course planning, assessment scope, marks and practice results need no database-table changes.
 
 The documented predecessor v1 is the same study schema without resource records or course folder URLs. Migration `1 → 2` adds empty resources and empty folder URLs. This is exercised by tests; no real older release is assumed to exist. New migrations must clone their input, preserve IDs and timestamps, run sequentially, and validate before persistence. Database load migrates supported older snapshots using the same migration runner, then commits atomically. Unsupported future versions fail safely without initializing over existing records.
 
@@ -82,3 +82,15 @@ Official references checked while planning:
 - [Browser token model and expiry](https://developers.google.com/identity/oauth2/web/guides/use-token-model)
 - [Drive permissions](https://developers.google.com/workspace/drive/api/guides/manage-sharing)
 - [Verification and personal-use exceptions](https://developers.google.com/identity/protocols/oauth2/production-readiness/brand-verification)
+
+## Calendar mirror and attention center
+
+`domain/calendar.ts` maps verified academic records to provider payloads; `domain/alerts.ts` derives one consolidated alert per assessment/course without mutation. `app/calendar-sync.ts` reserves event identities through the existing repository before network operations, then stores sanitized results. `app/calendar-context.tsx` coordinates optional authorization and automatic/manual actions. Feature screens consume that context. `integrations/google-calendar.ts` owns the Google Identity Services token and REST transport. It never writes academic data. No Google event is a planner input.
+
+OAuth tokens remain in memory for the mounted account workspace. Only public configuration goes into build variables. Calendar settings, mappings, and alert receipts use the same cloud ownership/RLS and revision checks as other records. Maps intentionally survive deletion of their source assessment, so explicit external cleanup remains possible. Unsupported newer backups are rejected before replacement. Validation strips unexpected token fields; exports serialize the validated dataset, not the adapter.
+
+Deterministic provider event IDs prevent duplicates after lost responses or status-save failure. Reserved mappings are persisted before remote mutation; 409 collisions are checked for the app/assessment marker and updated. User confirmation guards external deletion. Suppression prevents automatic recreation, while explicit manual resync advances the event generation. Tombstones require explicit removal/resync. No distributed transaction is claimed: concurrent devices can produce a temporarily stale external mirror, resolved from current Study Desk data on explicit update.
+
+Alert fingerprints exclude incidental countdown and study-progress edits. Meaningful source/date/coverage or urgency-phase changes invalidate receipts. Alerts and sync actions pass through existing application commits and never call planner mutation functions. Existing locked-plan transition validation remains in force.
+
+See [GOOGLE-CALENDAR.md](GOOGLE-CALENDAR.md) for scopes, OAuth origins, reminder semantics, publication constraints, operational recovery, and intentionally deferred delivery mechanisms. Calendar reminders are now implemented; the earlier future-feature table applies only to broader synchronization or additional delivery providers.

@@ -54,7 +54,7 @@ describe("cloud snapshot saves", () => {
       data,
       1,
     );
-    expect(result.data.schemaVersion).toBe(3);
+    expect(result.data.schemaVersion).toBe(4);
     expect(result.data.dailyPlans).toHaveLength(1);
     expect(rpc.mock.calls[0][1].payload.dailyPlans[0].locked).toBe(true);
   });

@@ -431,7 +431,7 @@ describe("verified coverage and preservation", () => {
     old.assessments.forEach((a: Record<string, unknown>) => delete a.coverage);
     const before = JSON.stringify(old);
     const migrated = migrateData(old);
-    expect(migrated.schemaVersion).toBe(3);
+    expect(migrated.schemaVersion).toBe(4);
     expect(migrated.dailyPlans).toEqual([]);
     expect(migrated.lectures).toEqual(d.lectures);
     expect(migrated.courses.map((c) => c.id)).toEqual(

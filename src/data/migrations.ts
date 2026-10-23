@@ -1,3 +1,7 @@
+import {
+  defaultCalendarSettings,
+  defaultCalendarEligible,
+} from "../domain/calendar-model";
 import { validateData, type Dataset } from "../domain/model";
 import {
   defaultPlannerSettings,
@@ -9,6 +13,20 @@ const migrations: Record<
   number,
   (d: Record<string, unknown>) => Record<string, unknown>
 > = {
+  3: (d) => ({
+    ...d,
+    schemaVersion: 4,
+    settings: {
+      ...(d.settings as object),
+      googleCalendar: defaultCalendarSettings(),
+    },
+    calendarMappings: [],
+    alertReceipts: [],
+    types: (d.types as Record<string, unknown>[]).map((t) => ({
+      ...t,
+      calendarEligible: defaultCalendarEligible(String(t.label)),
+    })),
+  }),
   1: (d) => ({
     ...d,
     schemaVersion: 2,
@@ -50,11 +68,11 @@ export function migrateData(raw: unknown): Dataset {
     value.schemaVersion < 1
   )
     throw new Error("Missing or unsupported schema version");
-  if (value.schemaVersion > 3)
+  if (value.schemaVersion > 4)
     throw new Error(
       "This backup is from a newer version. Update Study Desk before restoring.",
     );
-  while (value.schemaVersion !== 3) {
+  while (value.schemaVersion !== 4) {
     const migrate = migrations[value.schemaVersion as number];
     if (!migrate) throw new Error("No supported migration");
     value = migrate(value);

@@ -1,3 +1,4 @@
+import { calendarStatus } from "../../domain/calendar";
 import { useState } from "react";
 import { Temporal } from "@js-temporal/polyfill";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
@@ -155,6 +156,14 @@ export function Calendar() {
                             {courses.find((c) => c.id === a.courseId)?.code}
                           </span>
                           <strong>{a.title}</strong>
+                          {d.calendarMappings.some(
+                            (m) =>
+                              m.assessmentId === a.id && m.status !== "removed",
+                          ) && (
+                            <small>
+                              Google Calendar: {calendarStatus(d, a)}
+                            </small>
+                          )}
                           <span>
                             {a.deadline.kind === "timed"
                               ? formatInstant(a.deadline.at, zone)

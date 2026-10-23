@@ -78,7 +78,7 @@ describe("atomic storage and restore", () => {
       request.onerror = () => reject(request.error);
     });
     const loaded = await repo.load();
-    expect(loaded?.data.schemaVersion).toBe(3);
+    expect(loaded?.data.schemaVersion).toBe(4);
     expect(loaded?.data.semesters).toEqual(original.semesters);
     expect(loaded?.data.dailyPlans).toEqual([]);
     expect(loaded?.revision).toBe(8);

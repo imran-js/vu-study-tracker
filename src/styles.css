@@ -1956,3 +1956,111 @@ summary {
     flex: 1 1 auto;
   }
 }
+
+/* Optional academic integrations retain the existing layout and palette. */
+.notification-count {
+  margin-left: auto;
+  padding: 2px 7px;
+  border-radius: 12px;
+  background: #e5eee6;
+  color: #183e36;
+  font-size: 12px;
+}
+.notification-shortcut {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 9px;
+  color: #183e36;
+}
+.notification-list {
+  display: grid;
+  gap: 16px;
+  margin-top: 20px;
+}
+.notification-list h2 {
+  margin-top: 14px;
+}
+.google-settings {
+  margin-top: 24px;
+}
+.google-settings label,
+.assessment-calendar label {
+  display: grid;
+  gap: 7px;
+  margin: 14px 0;
+}
+.google-settings label.checkbox-row,
+.assessment-calendar label.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.google-settings input[type="checkbox"],
+.assessment-calendar input[type="checkbox"] {
+  width: auto;
+}
+.google-settings input:not([type="checkbox"]),
+.google-settings select,
+.assessment-calendar input:not([type="checkbox"]) {
+  width: 100%;
+  max-width: 560px;
+}
+.assessment-calendar {
+  margin: 14px 0;
+  padding: 12px;
+  border: 1px solid #d8e1d8;
+  border-radius: 8px;
+}
+.assessment-calendar summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.calendar-mapping-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid #d8e1d8;
+  overflow-wrap: anywhere;
+}
+.calendar-connection-fields {
+  padding-top: 12px;
+}
+@media (max-width: 600px) {
+  .google-settings .button-row,
+  .assessment-calendar .button-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .notification-list .button-row {
+    flex-wrap: wrap;
+  }
+  .notification-shortcut {
+    margin-left: auto;
+  }
+}
+
+.google-settings label.checkbox-row,
+.assessment-calendar label.checkbox-row {
+  flex-direction: row;
+  justify-content: flex-start;
+  text-align: left;
+}
+.notification-list + label.checkbox-row {
+  flex-direction: row;
+}
+
+@media (max-width: 600px) {
+  .assessment {
+    flex-direction: column;
+  }
+  .assessment > .grow {
+    width: 100%;
+    flex-basis: auto;
+  }
+  .assessment-status {
+    margin-left: 0;
+  }
+}

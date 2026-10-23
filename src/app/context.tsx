@@ -17,6 +17,7 @@ export type EditorRequest = {
 };
 export interface StudyContextValue {
   data: Dataset;
+  getData: () => Dataset;
   run: (
     mutate: (d: Dataset) => void,
     message?: string,

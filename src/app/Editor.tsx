@@ -1,3 +1,4 @@
+import { defaultCalendarEligible } from "../domain/calendar-model";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { useStudy, type EditorRequest } from "./context";
 import { Modal } from "../shared/ui";
@@ -621,6 +622,8 @@ export function Editor({
           const previous = d.assessments.find((a) => a.id === r.id);
           put(d.assessments, {
             ...fresh,
+            calendarEligible: previous?.calendarEligible,
+            dateConfirmation: previous?.dateConfirmation,
             courseId: value("courseId"),
             typeId: value("typeId"),
             title: value("title").trim(),
@@ -725,7 +728,13 @@ export function Editor({
           if (!r.id) d.settings.activeSemesterId = fresh.id;
         }
         if (r.kind === "type")
-          put(d.types, { ...fresh, label: value("label").trim() });
+          put(d.types, {
+            ...fresh,
+            label: value("label").trim(),
+            calendarEligible:
+              d.types.find((t) => t.id === r.id)?.calendarEligible ??
+              defaultCalendarEligible(value("label")),
+          });
         if (r.kind === "session" && startAfterSave)
           startTimer(d, r.id || fresh.id);
       }, "Saved successfully");

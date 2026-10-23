@@ -20,7 +20,7 @@ The semester-status cards show active offerings, their known/unknown progress, c
 
 ### Data upgrade
 
-Schema **3** adds daily plans, planner settings, optional course planning / weak-unit fields, and optional assessment scope and practice records. Ordered migrations support schema 1 and 2 backups and browser/cloud snapshots, preserving IDs, existing academic records and Drive URLs. Earlier assessments receive unknown coverage; no plans, deadlines or progress are fabricated. Exports include all planner records. Keep a backup before upgrading; older clients cannot open schema 3 exports.
+The previous schema **3** added daily plans, planner settings, optional course planning / weak-unit fields, and optional assessment scope and practice records. Ordered migrations support schema 1 and 2 backups and browser/cloud snapshots, preserving IDs, existing academic records and Drive URLs. Earlier assessments receive unknown coverage; no plans, deadlines or progress are fabricated. Exports include all planner records. Keep a backup before upgrading; older clients cannot open schema 3 exports.
 
 No Supabase SQL change or second database is required: the same owner-scoped JSON snapshot and revision-checked RPC store the upgraded data. Cloud saves still require connectivity, and stale saves fail rather than overwrite newer records. Full backup restore is the explicit, confirmed exception to normal locked/history edit protection.
 
@@ -37,6 +37,12 @@ The deployment workflow now supplies this project's public Supabase URL and publ
 A generic additive course-catalog importer is available during local development. Its input is `private/course-catalog.json`, which is ignored by Git and excluded from the production build. When this file exists, the signed-in local cloud workspace imports it once per account/catalog ID on load. Existing course titles, completion, assessments, timers, notes and schedules are preserved. Missing course metadata, numbered units and resource links are added, with duplicate resources matched by Drive ID. A local marker prevents repeating the same import on later reloads. Browser-only mode never automatically imports it. A failed cloud save reports an error and can be retried by reloading.
 
 The endpoint is loopback-only, same-origin, development-only and uncached. Never expose the development server to the internet. Private data must remain outside `public/`, source imports and deployment assets. On the published website, the imported records load from the signed-in Supabase account; the catalog is not hosted there.
+
+## Google Calendar and notifications (1.2)
+
+Optional one-way Google Calendar mirroring and an in-app attention center are now available. Study Desk remains authoritative; neither Calendar results nor alerts rewrite locked Today plans. See [GOOGLE-CALENDAR.md](GOOGLE-CALENDAR.md) for connection, official-date confirmation, reminders, OAuth configuration, disconnect behavior and limitations.
+
+Schema **4** adds Calendar preferences/mappings, date confirmations, type eligibility and notification receipts. Schema 3 snapshots migrate conservatively: no dates become verified and automatic sync starts off. Browser and Supabase storage use the same validation and existing repository; no SQL change is required. Exports include mappings/preferences/receipts but never Google authorization tokens. Older clients cannot open v4 backups; reload old tabs after deployment.
 
 ## Run on Windows
 

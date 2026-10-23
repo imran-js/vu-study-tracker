@@ -23,6 +23,7 @@ jobs:
       - run: npm test
       - run: npm run build
         env:
+          VITE_GOOGLE_CALENDAR_CLIENT_ID: ${{ vars.VITE_GOOGLE_CALENDAR_CLIENT_ID || '176113204443-5b0tci6huf8upn728rcjb0443a8h2pru.apps.googleusercontent.com' }}
           # Publishable client configuration; access is enforced by Supabase RLS.
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || 'https://zkzzvxsqafgciskxfzpp.supabase.co' }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_1d-cecEGRspHGemhxCJGwg_PA3AfM15' }}

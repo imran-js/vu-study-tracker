@@ -1,3 +1,4 @@
+import { GoogleCalendarSettings } from "../calendar/GoogleCalendar";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   Download,
@@ -74,6 +75,7 @@ export function Settings() {
       <PageHeading eyebrow="MAKE IT YOURS" title="Settings & Data">
         Your semesters, preferences, and a safe copy of your work.
       </PageHeading>
+      <GoogleCalendarSettings />
       <div className="settings-grid">
         <PlannerSettings key={JSON.stringify(d.settings.planner)} />
         <section className="panel">
@@ -276,8 +278,8 @@ export function Settings() {
           records. Google Drive notes remain separate from study-data storage.
         </p>
         <p className="muted">
-          Reminders appear inside the website. Reliable scheduled alerts while
-          it is closed require a future calendar, push, or email integration.
+          Study Desk alerts appear inside the website. Connected Google Calendar
+          provides external reminders; Study Desk does not send native push.
         </p>
         <button
           onClick={async () => {

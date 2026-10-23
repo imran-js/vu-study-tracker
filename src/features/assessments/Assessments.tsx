@@ -1,3 +1,4 @@
+import { AssessmentCalendar } from "../calendar/GoogleCalendar";
 import { useState } from "react";
 import { Plus, Pencil } from "lucide-react";
 import { useStudy } from "../../app/context";
@@ -53,6 +54,7 @@ export function AssessmentList({
               </p>
               {a.notes && <p className="prewrap muted">{a.notes}</p>}
               <Readiness assessment={a} />
+              <AssessmentCalendar assessment={a} />
               {a.sourceUrl && (
                 <ExternalLink url={a.sourceUrl}>Source</ExternalLink>
               )}
