@@ -42,11 +42,14 @@ export function GoogleCalendarSettings() {
         {prefs.calendarName || "No calendar selected"}
         {g.connected && !g.ready ? " · Confirm calendar selection" : ""}
       </p>
-      <p className="muted">
-        Only confirmed academic assessments are mirrored. Ordinary study
-        sessions, revision blocks, and Tomorrow recommendations stay here.
-        Google access is separate from your Study Desk login.
-      </p>
+      <details className="calendar-help">
+        <summary>What gets synchronized?</summary>
+        <p className="muted">
+          Only confirmed academic assessments are mirrored. Ordinary study
+          sessions, revision blocks, and Tomorrow recommendations stay here.
+          Google access is separate from your Study Desk login.
+        </p>
+      </details>
       {!clientId && (
         <p className="notice">
           Google Cloud setup required: add the public OAuth client ID as
@@ -166,59 +169,66 @@ export function GoogleCalendarSettings() {
         />
         Opening day (all-day date ranges only)
       </label>
-      <label>
-        Custom reminder (minutes before start, 0–40320)
-        <input
-          type="number"
-          min="0"
-          max="40320"
-          step="1"
-          value={custom}
-          onChange={(e) => setCustom(e.target.value)}
-        />
-      </label>
-      <button
-        disabled={
-          custom === "" ||
-          !Number.isInteger(Number(custom)) ||
-          Number(custom) < 0 ||
-          Number(custom) > 40320 ||
-          prefs.reminders.length >= 4
-        }
-        onClick={() =>
-          void run((d) => {
-            d.settings.googleCalendar.reminders = [
-              ...new Set([
-                ...d.settings.googleCalendar.reminders,
-                Number(custom),
-              ]),
-            ];
-          })
-        }
-      >
-        Add custom reminder
-      </button>
-      <div className="button-row">
-        {prefs.reminders
-          .filter((m) => ![10080, 1440].includes(m))
-          .map((m) => (
-            <button
-              key={m}
-              onClick={() =>
-                void run((d) => {
-                  d.settings.googleCalendar.reminders =
-                    d.settings.googleCalendar.reminders.filter((v) => v !== m);
-                })
-              }
-            >
-              Remove {m}-minute reminder
-            </button>
-          ))}
-      </div>
+      <details>
+        <summary>Custom reminders</summary>
+        <label>
+          Custom reminder (minutes before start, 0–40320)
+          <input
+            type="number"
+            min="0"
+            max="40320"
+            step="1"
+            value={custom}
+            onChange={(e) => setCustom(e.target.value)}
+          />
+        </label>
+        <button
+          disabled={
+            custom === "" ||
+            !Number.isInteger(Number(custom)) ||
+            Number(custom) < 0 ||
+            Number(custom) > 40320 ||
+            prefs.reminders.length >= 4
+          }
+          onClick={() =>
+            void run((d) => {
+              d.settings.googleCalendar.reminders = [
+                ...new Set([
+                  ...d.settings.googleCalendar.reminders,
+                  Number(custom),
+                ]),
+              ];
+            })
+          }
+        >
+          Add custom reminder
+        </button>
+        <div className="button-row">
+          {prefs.reminders
+            .filter((m) => ![10080, 1440].includes(m))
+            .map((m) => (
+              <button
+                key={m}
+                onClick={() =>
+                  void run((d) => {
+                    d.settings.googleCalendar.reminders =
+                      d.settings.googleCalendar.reminders.filter(
+                        (v) => v !== m,
+                      );
+                  })
+                }
+              >
+                Remove {m}-minute reminder
+              </button>
+            ))}
+        </div>
+        <p className="muted">
+          At most four advance reminders plus opening day. Cancelled events have
+          reminders disabled.
+        </p>
+      </details>
       <p className="muted">
-        At most four advance reminders plus opening day. Cancelled events have
-        reminders disabled. Disconnecting does not remove existing events or
-        their existing Google reminders.
+        Disconnecting does not remove existing events or their Google reminders.
       </p>
       {g.busy && (
         <p role="status">
@@ -248,7 +258,10 @@ export function GoogleCalendarSettings() {
                 <span>
                   {d.assessments.find((a) => a.id === m.assessmentId)?.title ||
                     "Deleted assessment"}{" "}
-                  · {m.calendarId} · {m.status}
+                  ·{" "}
+                  {g.calendars.find((c) => c.id === m.calendarId)?.summary ||
+                    "Previously selected calendar"}{" "}
+                  · {m.status}
                 </span>
                 <a
                   target="_blank"

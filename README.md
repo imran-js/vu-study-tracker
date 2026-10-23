@@ -2,6 +2,10 @@
 
 A browser-first personal study tracker built with React, TypeScript, Vite, and IndexedDB. Starts with an empty **Semester 1 — Fall 2026**. No actual courses, lecture counts, or deadlines are preloaded.
 
+## Appearance and readability
+
+Use the header theme control or **Settings & Data → Appearance** to choose Light, Dark, or System (default). Choose Compact, Default, or Large text in Settings. These preferences stay in this browser and do not change or synchronize your study records. See [UI verification](UI-VERIFICATION.md) for the responsive and accessibility checks.
+
 ## Daily semester planner
 
 Today is the operational screen: review Main and optional Secondary study items, their focus, minutes and reasons, then choose **Confirm & lock Today**. Once locked, no assessment, priority, course-status or progress change rewrites that assignment. Use **Unlock today's plan**, save the unlock, and deliberately edit/replan before locking again. Logging completion or time is allowed while locked; it does not unlock or change the assignment. Future days can be saved as editable drafts; only the active Today can be locked.

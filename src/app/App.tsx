@@ -1,4 +1,5 @@
 import { GoogleCalendarProvider } from "./calendar-context";
+import { ThemeControl } from "./appearance";
 import { Notifications } from "../features/notifications/Notifications";
 import { studyAlerts } from "../domain/alerts";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -73,6 +74,14 @@ export default function App({
   const sidebar = useRef<HTMLElement>(null);
   const menuButton = useRef<HTMLButtonElement>(null);
   const [, refreshClock] = useState(0);
+  function closeNavigation() {
+    setMenu(false);
+    requestAnimationFrame(() => menuButton.current?.focus());
+  }
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    main.current?.focus({ preventScroll: true });
+  }, [page]);
   useEffect(() => {
     const timer = setInterval(() => refreshClock((n) => n + 1), 60000);
     return () => clearInterval(timer);
@@ -82,8 +91,7 @@ export default function App({
     sidebar.current?.querySelector<HTMLElement>("a, button")?.focus();
     function keyboard(e: KeyboardEvent) {
       if (e.key === "Escape") {
-        setMenu(false);
-        menuButton.current?.focus();
+        closeNavigation();
       }
       if (e.key !== "Tab") return;
       const items = [
@@ -267,7 +275,7 @@ export default function App({
             <button
               className="mobile-close icon-button"
               aria-label="Close navigation"
-              onClick={() => setMenu(false)}
+              onClick={closeNavigation}
             >
               <X size={21} />
             </button>
@@ -277,6 +285,9 @@ export default function App({
                 <a
                   key={id}
                   href={`#/${id}`}
+                  onClick={() => {
+                    if (page === id && menu) closeNavigation();
+                  }}
                   aria-current={page === id ? "page" : undefined}
                 >
                   <Icon size={19} />
@@ -309,11 +320,11 @@ export default function App({
             <button
               className="menu-backdrop"
               aria-label="Close navigation"
-              onClick={() => setMenu(false)}
+              onClick={closeNavigation}
             />
           )}
           <div className="workspace" inert={menu}>
-            <header className="topbar">
+            <header className="topbar" aria-label="Study Desk controls">
               <div className="topbar-left">
                 <button
                   ref={menuButton}
@@ -349,26 +360,33 @@ export default function App({
                   <ChevronDown size={14} />
                 </div>
               </div>
-              <a
-                className="notification-shortcut"
-                href="#/notifications"
-                aria-label={`Notifications, ${unread} unread`}
-              >
-                <Bell size={18} />
-                {unread > 0 && <span>{unread}</span>}
-              </a>
-              <div className="topbar-date">
-                <span>
-                  {new Date(
-                    `${today(d.settings.timezone)}T12:00:00Z`,
-                  ).toLocaleDateString("en", {
-                    weekday: "short",
-                    month: "short",
-                    day: "numeric",
-                    timeZone: "UTC",
-                  })}
-                </span>
-                <small>{d.settings.timezone}</small>
+              <div className="topbar-actions">
+                <a
+                  className="notification-shortcut"
+                  href="#/notifications"
+                  aria-label={`Notifications, ${unread} unread`}
+                >
+                  <Bell size={18} />
+                  {unread > 0 && (
+                    <span className="notification-count" aria-hidden="true">
+                      {unread}
+                    </span>
+                  )}
+                </a>
+                <ThemeControl compact />
+                <div className="topbar-date">
+                  <span>
+                    {new Date(
+                      `${today(d.settings.timezone)}T12:00:00Z`,
+                    ).toLocaleDateString("en", {
+                      weekday: "short",
+                      month: "short",
+                      day: "numeric",
+                      timeZone: "UTC",
+                    })}
+                  </span>
+                  <small>{d.settings.timezone}</small>
+                </div>
               </div>
             </header>
             <main

@@ -52,11 +52,17 @@ export function AssessmentList({
                 {a.opensOn && ` · Opens ${a.opensOn}`}
                 {a.endsAt && " · end time set"}
               </p>
-              {a.notes && <p className="prewrap muted">{a.notes}</p>}
+
               <Readiness assessment={a} />
               <AssessmentCalendar assessment={a} />
-              {a.sourceUrl && (
-                <ExternalLink url={a.sourceUrl}>Source</ExternalLink>
+              {(a.notes || a.sourceUrl) && (
+                <details>
+                  <summary>Notes & source link</summary>
+                  {a.notes && <p className="prewrap muted">{a.notes}</p>}
+                  {a.sourceUrl && (
+                    <ExternalLink url={a.sourceUrl}>Source</ExternalLink>
+                  )}
+                </details>
               )}
             </div>
             <div className="assessment-status">

@@ -1,3 +1,4 @@
+import { AppearanceSettings } from "../../app/appearance";
 import { GoogleCalendarSettings } from "../calendar/GoogleCalendar";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
@@ -75,7 +76,7 @@ export function Settings() {
       <PageHeading eyebrow="MAKE IT YOURS" title="Settings & Data">
         Your semesters, preferences, and a safe copy of your work.
       </PageHeading>
-      <GoogleCalendarSettings />
+      <AppearanceSettings />
       <div className="settings-grid">
         <PlannerSettings key={JSON.stringify(d.settings.planner)} />
         <section className="panel">
@@ -127,6 +128,7 @@ export function Settings() {
             <button className="primary">Save preferences</button>
           </form>
         </section>
+        <GoogleCalendarSettings />
         <section className="panel">
           <div className="section-heading">
             <h2>Backups & restore</h2>
@@ -249,30 +251,33 @@ export function Settings() {
       </section>
       <section className="panel storage-explanation">
         <h2>Where everything lives</h2>
-        <div className="explanation-grid">
-          <div>
-            <h3>Website hosting</h3>
-            <p>
-              GitHub Pages publishes the application code and assets so you can
-              open the website.
-            </p>
+        <details>
+          <summary>Hosting, code, and personal data</summary>
+          <div className="explanation-grid">
+            <div>
+              <h3>Website hosting</h3>
+              <p>
+                GitHub Pages publishes the application code and assets so you
+                can open the website.
+              </p>
+            </div>
+            <div>
+              <h3>Code backup</h3>
+              <p>
+                GitHub preserves code you commit and push. It does not save your
+                personal study records.
+              </p>
+            </div>
+            <div>
+              <h3>Personal study data</h3>
+              <p>
+                {cloud
+                  ? "Records are stored in your private Supabase account. Sign in with the same account on another device, then reload to get the latest records. Internet access is required to save. Conflicting saves are rejected; export your current view before reloading if needed."
+                  : "Records live in IndexedDB in this browser. Devices, browser profiles, localhost ports, and the published origin have separate records. Clearing browser data can erase them."}
+              </p>
+            </div>
           </div>
-          <div>
-            <h3>Code backup</h3>
-            <p>
-              GitHub preserves code you commit and push. It does not save your
-              personal study records.
-            </p>
-          </div>
-          <div>
-            <h3>Personal study data</h3>
-            <p>
-              {cloud
-                ? "Records are stored in your private Supabase account. Sign in with the same account on another device, then reload to get the latest records. Internet access is required to save. Conflicting saves are rejected; export your current view before reloading if needed."
-                : "Records live in IndexedDB in this browser. Devices, browser profiles, localhost ports, and the published origin have separate records. Clearing browser data can erase them."}
-            </p>
-          </div>
-        </div>
+        </details>
         <p>
           Export regularly. Publishing an update does not back up or synchronize
           records. Google Drive notes remain separate from study-data storage.

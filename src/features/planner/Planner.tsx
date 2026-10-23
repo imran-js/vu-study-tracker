@@ -22,7 +22,7 @@ import {
 import { setLectureStatus } from "../../app/actions";
 import { progress } from "../../domain/progress";
 
-export function DailyPlanner() {
+export function DailyPlanner({ part }: { part: "today" | "tomorrow" }) {
   const { data: d, semesterId, run } = useStudy();
   const day = today(d.settings.timezone),
     tomorrow = addDays(day, 1);
@@ -39,250 +39,259 @@ export function DailyPlanner() {
   const items = plan?.items || recommendation.items;
   return (
     <>
-      <section className="panel daily-planner">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">TODAY · {day}</p>
-            <h2>{plan?.locked ? "Today — Locked" : "Today's study plan"}</h2>
+      {part === "today" && (
+        <section className="panel daily-planner">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">TODAY · {day}</p>
+              <h2>{plan?.locked ? "Today — Locked" : "Today's study plan"}</h2>
+            </div>
+            <Pill>{plan ? planOutcome(d, plan) : "Not confirmed"}</Pill>
           </div>
-          <Pill>{plan ? planOutcome(d, plan) : "Not confirmed"}</Pill>
-        </div>
-        <p className="muted">
-          {plan?.locked
-            ? "Today's choices are fixed. New deadlines and priority changes influence tomorrow onward."
-            : "Review a realistic plan, then explicitly confirm and lock it. Recommendations are not saved automatically."}
-        </p>
-        {!items.length && (
-          <p>
-            {archived
-              ? "This semester is archived. Its plan history remains available."
-              : recommendation.booked
-                ? "Your existing sessions already fill the daily budget. Keep those sessions or adjust them before adding work."
-                : "Add an active course to begin planning."}
+          <p className="muted">
+            {plan?.locked
+              ? "Today's choices are fixed. New deadlines and priority changes influence tomorrow onward."
+              : "Review a realistic plan, then explicitly confirm and lock it. Recommendations are not saved automatically."}
           </p>
-        )}
-        <div className="daily-items">
-          {items.map((item) => (
-            <article className="daily-item" key={item.role}>
-              <p className="eyebrow">{item.role}</p>
-              <h3>
-                {d.courses.find((c) => c.id === item.courseId)?.code} ·{" "}
-                {item.minutes} min
-              </h3>
-              <strong>{item.focus}</strong>
-              <p className="meta">
-                {item.source}: {item.reason}
-              </p>
-              {plan && (
-                <>
-                  <p>
-                    <Pill>{item.status}</Pill>
-                    {item.sessionId &&
-                      ` · ${Math.round(minutes(d.sessions.find((s) => s.id === item.sessionId)?.intervals || []))} min recorded`}
+          {!items.length && (
+            <p>
+              {archived
+                ? "This semester is archived. Its plan history remains available."
+                : recommendation.booked
+                  ? "Your existing sessions already fill the daily budget. Keep those sessions or adjust them before adding work."
+                  : "Add an active course to begin planning."}
+            </p>
+          )}
+          <p>
+            <strong>
+              Total planned: {items.reduce((s, i) => s + i.minutes, 0)} min
+            </strong>{" "}
+            ·{" "}
+            {plan
+              ? `Limit when saved: ${plan.maximumMinutes}`
+              : `Daily maximum: ${d.settings.planner.maximumMinutes}`}{" "}
+            min
+          </p>
+          <div className="daily-items">
+            {items.map((item) => (
+              <article className="daily-item" key={item.role}>
+                <p className="eyebrow">{item.role}</p>
+                <h3>
+                  {d.courses.find((c) => c.id === item.courseId)?.code} ·{" "}
+                  {item.minutes} min
+                </h3>
+                <strong>{item.focus}</strong>
+                <details className="plan-reason">
+                  <summary>Why this item?</summary>
+                  <p className="meta">
+                    {item.source}: {item.reason}
                   </p>
-                  <div className="button-row planner-actions">
-                    {(["completed", "partial", "skipped"] as const).map(
-                      (status) => (
-                        <button
-                          className="small"
-                          key={status}
-                          aria-pressed={item.status === status}
-                          onClick={() =>
-                            void run(
-                              (d) =>
-                                logPlanStatus(d, plan.id, item.role, status),
-                              `Plan item ${status}; academic completion is unchanged`,
-                            )
-                          }
-                        >
-                          {status[0].toUpperCase() + status.slice(1)}
-                        </button>
-                      ),
-                    )}
-                    <button
-                      className="small"
-                      disabled={!!d.timer}
-                      onClick={() =>
-                        void run(
-                          (d) => startPlanTimer(d, plan.id, item.role),
-                          "Study timer started",
-                        )
-                      }
-                    >
-                      Start timer
-                    </button>
-                    {([30, 60] as const).map((n) => (
+                </details>
+                {plan && (
+                  <>
+                    <p>
+                      <Pill>{item.status}</Pill>
+                      {item.sessionId &&
+                        ` · ${Math.round(minutes(d.sessions.find((s) => s.id === item.sessionId)?.intervals || []))} min recorded`}
+                    </p>
+                    <div className="button-row planner-actions">
+                      {(["completed", "partial", "skipped"] as const).map(
+                        (status) => (
+                          <button
+                            className="small"
+                            key={status}
+                            aria-pressed={item.status === status}
+                            onClick={() =>
+                              void run(
+                                (d) =>
+                                  logPlanStatus(d, plan.id, item.role, status),
+                                `Plan item ${status}; academic completion is unchanged`,
+                              )
+                            }
+                          >
+                            {status[0].toUpperCase() + status.slice(1)}
+                          </button>
+                        ),
+                      )}
                       <button
                         className="small"
-                        key={n}
                         disabled={!!d.timer}
-                        title={`Record actual study during the last ${n} minutes`}
-                        onClick={() => {
-                          if (
-                            confirm(
-                              `Record that you studied this item during the last ${n} minutes? Overlapping time entries will be rejected.`,
-                            )
+                        onClick={() =>
+                          void run(
+                            (d) => startPlanTimer(d, plan.id, item.role),
+                            "Study timer started",
                           )
-                            void run(
-                              (d) => logPlanMinutes(d, plan.id, item.role, n),
-                              `${n} actual study minutes recorded`,
-                            );
-                        }}
+                        }
                       >
-                        Log {n} min
+                        Start timer
                       </button>
-                    ))}
-                    {item.lectureId && (
-                      <>
+                      {([30, 60] as const).map((n) => (
                         <button
                           className="small"
-                          onClick={() =>
-                            void run((d) => {
-                              d.lectures.find(
-                                (l) => l.id === item.lectureId,
-                              )!.needsRevision = true;
-                            }, "Unit flagged for revision; today's plan remains fixed")
-                          }
-                        >
-                          Needs revision
-                        </button>
-                        <button
-                          className="small"
-                          disabled={
-                            d.lectures.find((l) => l.id === item.lectureId)
-                              ?.status === "completed"
-                          }
-                          onClick={() =>
-                            void run(
-                              (d) =>
-                                setLectureStatus(
-                                  d,
-                                  item.lectureId!,
-                                  "completed",
-                                ),
-                              "Academic unit explicitly marked complete",
+                          key={n}
+                          disabled={!!d.timer}
+                          title={`Record actual study during the last ${n} minutes`}
+                          onClick={() => {
+                            if (
+                              confirm(
+                                `Record that you studied this item during the last ${n} minutes? Overlapping time entries will be rejected.`,
+                              )
                             )
-                          }
+                              void run(
+                                (d) => logPlanMinutes(d, plan.id, item.role, n),
+                                `${n} actual study minutes recorded`,
+                              );
+                          }}
                         >
-                          Mark unit complete
+                          Log {n} min
                         </button>
-                      </>
-                    )}
-                  </div>
-                </>
-              )}
-            </article>
-          ))}
-        </div>
-        <p>
-          <strong>
-            Total planned: {items.reduce((s, i) => s + i.minutes, 0)} min
-          </strong>{" "}
-          ·{" "}
-          {plan
-            ? `Limit when saved: ${plan.maximumMinutes}`
-            : `Daily maximum: ${d.settings.planner.maximumMinutes}`}{" "}
-          min
-        </p>
-        {plan?.notes && <p className="prewrap">{plan.notes}</p>}
-        <div className="button-row">
-          {plan?.locked ? (
-            <button
-              onClick={() => {
-                if (
-                  confirm(
-                    "Unlock today's plan for intentional editing? New information will still never rewrite it automatically.",
-                  )
-                )
-                  void run(
-                    (d) => unlockDayPlan(d, plan.id),
-                    "Today's plan unlocked; edit it explicitly",
-                  );
-              }}
-            >
-              Unlock today's plan
-            </button>
-          ) : (
-            <>
+                      ))}
+                      {item.lectureId && (
+                        <>
+                          <button
+                            className="small"
+                            onClick={() =>
+                              void run((d) => {
+                                d.lectures.find(
+                                  (l) => l.id === item.lectureId,
+                                )!.needsRevision = true;
+                              }, "Unit flagged for revision; today's plan remains fixed")
+                            }
+                          >
+                            Needs revision
+                          </button>
+                          <button
+                            className="small"
+                            disabled={
+                              d.lectures.find((l) => l.id === item.lectureId)
+                                ?.status === "completed"
+                            }
+                            onClick={() =>
+                              void run(
+                                (d) =>
+                                  setLectureStatus(
+                                    d,
+                                    item.lectureId!,
+                                    "completed",
+                                  ),
+                                "Academic unit explicitly marked complete",
+                              )
+                            }
+                          >
+                            Mark unit complete
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </>
+                )}
+              </article>
+            ))}
+          </div>
+          {plan?.notes && <p className="prewrap">{plan.notes}</p>}
+          <div className="button-row">
+            {plan?.locked ? (
               <button
-                className="primary"
-                disabled={
-                  archived || !activePlanningCourses(d, semesterId).length
-                }
-                onClick={() => setEditing({ day, replan: false })}
+                onClick={() => {
+                  if (
+                    confirm(
+                      "Unlock today's plan for intentional editing? New information will still never rewrite it automatically.",
+                    )
+                  )
+                    void run(
+                      (d) => unlockDayPlan(d, plan.id),
+                      "Today's plan unlocked; edit it explicitly",
+                    );
+                }}
               >
-                Review & lock Today
+                Unlock today's plan
               </button>
-              {plan && (
-                <button onClick={() => setEditing({ day, replan: true })}>
-                  Replan unlocked draft
+            ) : (
+              <>
+                <button
+                  className="primary"
+                  disabled={
+                    archived || !activePlanningCourses(d, semesterId).length
+                  }
+                  onClick={() => setEditing({ day, replan: false })}
+                >
+                  Review & lock Today
                 </button>
-              )}
-            </>
-          )}
-        </div>
-        <p className="meta">
-          Completed / Partial / Skipped records the plan outcome. Only “Mark
-          unit complete” changes academic completion. Time buttons record actual
-          sessions separately.
-        </p>
-      </section>
-      <section className="panel tomorrow-preview">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">TOMORROW · {tomorrow}</p>
-            <h2>Tomorrow recommendation</h2>
+                {plan && (
+                  <button onClick={() => setEditing({ day, replan: true })}>
+                    Replan unlocked draft
+                  </button>
+                )}
+              </>
+            )}
           </div>
-          <button
-            disabled={!preview.items.length}
-            onClick={() => setEditing({ day: tomorrow, replan: false })}
-          >
-            Review tomorrow
-          </button>
-        </div>
-        {tomorrowDraft && (
-          <p className="notice">
-            Saved tomorrow draft:{" "}
-            {tomorrowDraft.items
-              .map(
-                (i) =>
-                  `${d.courses.find((c) => c.id === i.courseId)?.code} ${i.minutes} min`,
-              )
-              .join(" + ")}
-            . Review it to keep or change these choices.
+          <p className="meta">
+            Completed / Partial / Skipped records the plan outcome. Only “Mark
+            unit complete” changes academic completion. Time buttons record
+            actual sessions separately.
           </p>
-        )}
-        {preview.items.map((item) => (
-          <div key={item.role}>
-            <strong>
-              {item.role}: {d.courses.find((c) => c.id === item.courseId)?.code}{" "}
-              · {item.minutes} min
-            </strong>
-            <p>{item.focus}</p>
-            <p className="meta">{item.reason}</p>
+        </section>
+      )}
+      {part === "tomorrow" && (
+        <section className="panel tomorrow-preview">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">TOMORROW · {tomorrow}</p>
+              <h2>Tomorrow recommendation</h2>
+            </div>
+            <button
+              disabled={!preview.items.length}
+              onClick={() => setEditing({ day: tomorrow, replan: false })}
+            >
+              Review tomorrow
+            </button>
           </div>
-        ))}
-        {!preview.items.length && (
-          <p>No additional study recommended within the available budget.</p>
-        )}
-        <p className="meta">
-          {preview.explanation} Subject to change until tomorrow becomes Today
-          and you lock it. A manually saved draft is kept until you edit it.
-        </p>
-        <details>
-          <summary>How courses were ranked</summary>
-          {preview.rankings.map((r) => (
-            <p key={r.course.id}>
-              <strong>
-                {r.course.code}: {r.score}
-              </strong>{" "}
-              · {r.reasons.join(" · ")}
+          {tomorrowDraft && (
+            <p className="notice">
+              Saved tomorrow draft:{" "}
+              {tomorrowDraft.items
+                .map(
+                  (i) =>
+                    `${d.courses.find((c) => c.id === i.courseId)?.code} ${i.minutes} min`,
+                )
+                .join(" + ")}
+              . Review it to keep or change these choices.
             </p>
+          )}
+          {preview.items.map((item) => (
+            <div key={item.role}>
+              <strong>
+                {item.role}:{" "}
+                {d.courses.find((c) => c.id === item.courseId)?.code} ·{" "}
+                {item.minutes} min
+              </strong>
+              <p>{item.focus}</p>
+              <details>
+                <summary>Why this item?</summary>
+                <p className="meta">{item.reason}</p>
+              </details>
+            </div>
           ))}
-        </details>
-      </section>
-      <CourseStatus />
-      <PlanHistory />
+          {!preview.items.length && (
+            <p>No additional study recommended within the available budget.</p>
+          )}
+          <p className="meta">
+            {preview.explanation} Subject to change until tomorrow becomes Today
+            and you lock it. A manually saved draft is kept until you edit it.
+          </p>
+          <details>
+            <summary>How courses were ranked</summary>
+            {preview.rankings.map((r) => (
+              <p key={r.course.id}>
+                <strong>
+                  {r.course.code}: {r.score}
+                </strong>{" "}
+                · {r.reasons.join(" · ")}
+              </p>
+            ))}
+          </details>
+        </section>
+      )}
       {editing && (
         <PlanEditor
           key={`${editing.day}:${editing.replan}`}
@@ -573,14 +582,15 @@ export function CourseStatus() {
               (l.needsRevision || (l.nextRevision && l.nextRevision <= day)),
           ).length;
           return (
-            <article key={c.id} className="course-status">
+            <article
+              key={c.id}
+              className="course-status"
+              data-status={c.planning?.status || "On track"}
+            >
               <h3>{c.code}</h3>
               <p>{c.title}</p>
               <Pill>{c.planning?.status || "On track"}</Pill>
-              <p className="meta">
-                {c.planning?.reason ||
-                  "Manual status; no weekly syllabus or relative course pace assumed."}
-              </p>
+
               <p>
                 <strong>
                   {p.completed} / {p.total ?? "unknown"} studied units
@@ -597,13 +607,8 @@ export function CourseStatus() {
                     : "Not started"}
               </p>
               <p className="meta">
-                Current: {current?.title || "Not started"}
-                <br />
-                Next: {next?.title || "Review current material"}
-                <br />
-                Last studied: {last || "No record"}
-                <br />
-                Revision / weak units: {weak}
+                <strong>Next:</strong>{" "}
+                {next?.title || "Review current material"}
               </p>
               <p className="meta">
                 Upcoming:{" "}
@@ -611,6 +616,20 @@ export function CourseStatus() {
                   ? `${assessment.title} · ${assessmentPlanningDay(d, assessment, day) || "date unknown"}`
                   : "None entered"}
               </p>
+              <details>
+                <summary>Status details</summary>
+                <p className="meta">
+                  {c.planning?.reason ||
+                    "Manual status; no weekly syllabus or relative course pace assumed."}
+                </p>
+                <p>
+                  Current: {current?.title || "Not started"}
+                  <br />
+                  Last studied: {last || "No record"}
+                  <br />
+                  Revision / weak units: {weak}
+                </p>
+              </details>
               <button
                 className="small"
                 onClick={() => edit({ kind: "course", id: c.id })}

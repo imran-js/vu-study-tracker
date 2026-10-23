@@ -24,61 +24,79 @@ export function Notifications() {
         Show dismissed alerts
       </label>
       {!alerts.length && (
-        <Empty title="Nothing needs your attention">
+        <Empty title="You’re all caught up.">
           Upcoming deadlines and revision needs will appear here.
         </Empty>
       )}
       <div className="notification-list">
-        {alerts.map((a) => (
-          <article key={a.key} className="panel">
-            <div className="button-row">
-              <Pill tone={a.level === "Critical" ? "danger" : ""}>
-                {a.level}
-              </Pill>
-              <span>
-                {a.state || "Unread"} · Relevant {a.relevance}
-              </span>
-            </div>
-            <h2>{a.title}</h2>
-            <p className="prewrap">{a.reason}</p>
-            <div className="button-row">
-              {a.assessmentId && (
-                <button
-                  onClick={() =>
-                    edit({ kind: "assessment", id: a.assessmentId })
-                  }
+        {(["Critical", "Important", "Informational"] as const).map((level) => {
+          const group = alerts.filter((a) => a.level === level);
+          return group.length ? (
+            <section key={level} aria-label={`${level} notifications`}>
+              <h2 className="notification-group-title">
+                {level} <span className="muted">({group.length})</span>
+              </h2>
+              {group.map((a) => (
+                <article
+                  key={a.key}
+                  className="panel notification-card"
+                  data-level={a.level}
+                  data-state={a.state || "unread"}
                 >
-                  View assessment
-                </button>
-              )}
-              <button onClick={() => edit({ kind: "course", id: a.courseId })}>
-                View course
-              </button>
-              <button
-                disabled={a.state === "read"}
-                onClick={() =>
-                  void run(
-                    (d) => acknowledgeAlert(d, a, "read"),
-                    "Alert marked read",
-                  )
-                }
-              >
-                Mark read
-              </button>
-              <button
-                disabled={a.state === "dismissed"}
-                onClick={() =>
-                  void run(
-                    (d) => acknowledgeAlert(d, a, "dismissed"),
-                    "Alert dismissed until the situation materially changes",
-                  )
-                }
-              >
-                Dismiss
-              </button>
-            </div>
-          </article>
-        ))}
+                  <div className="button-row">
+                    <Pill tone={a.level === "Critical" ? "danger" : ""}>
+                      {d.courses.find((c) => c.id === a.courseId)?.code ||
+                        "Course"}
+                    </Pill>
+                    <span>
+                      {a.state || "Unread"} · Relevant {a.relevance}
+                    </span>
+                  </div>
+                  <h3>{a.title}</h3>
+                  <p className="prewrap">{a.reason}</p>
+                  <div className="button-row">
+                    {a.assessmentId && (
+                      <button
+                        onClick={() =>
+                          edit({ kind: "assessment", id: a.assessmentId })
+                        }
+                      >
+                        View assessment
+                      </button>
+                    )}
+                    <button
+                      onClick={() => edit({ kind: "course", id: a.courseId })}
+                    >
+                      View course
+                    </button>
+                    <button
+                      disabled={a.state === "read"}
+                      onClick={() =>
+                        void run(
+                          (d) => acknowledgeAlert(d, a, "read"),
+                          "Alert marked read",
+                        )
+                      }
+                    >
+                      Mark read
+                    </button>
+                    <button
+                      disabled={a.state === "dismissed"}
+                      onClick={() =>
+                        void run(
+                          (d) => acknowledgeAlert(d, a, "dismissed"),
+                          "Alert dismissed until the situation materially changes",
+                        )
+                      }
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </section>
+          ) : null;
+        })}
       </div>
     </>
   );

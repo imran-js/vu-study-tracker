@@ -1,5 +1,5 @@
 import { Plus, Clock3, BookOpen, CalendarDays, RotateCcw } from "lucide-react";
-import { DailyPlanner } from "../planner/Planner";
+import { DailyPlanner, CourseStatus, PlanHistory } from "../planner/Planner";
 import { assessmentPlanningDay } from "../../domain/planner";
 import { useStudy } from "../../app/context";
 import { Empty, PageHeading, Pill } from "../../shared/ui";
@@ -71,7 +71,7 @@ export function Today() {
     <>
       <PageHeading
         eyebrow="A LITTLE PROGRESS, EVERY DAY"
-        title="Your day, in focus."
+        title="Today"
         action={
           <button className="primary" onClick={() => edit({ kind: "session" })}>
             <Plus size={17} />
@@ -81,41 +81,7 @@ export function Today() {
       >
         Pick your next step. Keep a steady rhythm.
       </PageHeading>
-      <DailyPlanner />
-      <div className="stats-grid">
-        <Stat
-          icon={<Clock3 size={20} />}
-          label="STUDIED THIS WEEK"
-          value={duration(p.weekMinutes)}
-          detail={
-            d.settings.weeklyTarget
-              ? `of ${duration(d.settings.weeklyTarget)} target`
-              : "Actual time, pauses excluded"
-          }
-        />
-        <Stat
-          icon={<BookOpen size={20} />}
-          label="LECTURES COMPLETED"
-          value={String(p.completed)}
-          detail={
-            p.total === undefined
-              ? "Semester total unknown"
-              : `of ${p.total} confirmed lectures`
-          }
-        />
-        <Stat
-          icon={<CalendarDays size={20} />}
-          label="DUE TODAY"
-          value={String(dueToday.length)}
-          detail={`${overdue.length} overdue assessments`}
-        />
-        <Stat
-          icon={<RotateCcw size={20} />}
-          label="REVISION DUE"
-          value={String(revisions.length)}
-          detail="Your scheduled revision dates"
-        />
-      </div>
+      <DailyPlanner part="today" />
       <div className="today-columns">
         <section className="panel">
           <div className="section-heading">
@@ -227,6 +193,43 @@ export function Today() {
           </div>
         </section>
       </div>
+      <DailyPlanner part="tomorrow" />
+      <div className="stats-grid">
+        <Stat
+          icon={<Clock3 size={20} />}
+          label="STUDIED THIS WEEK"
+          value={duration(p.weekMinutes)}
+          detail={
+            d.settings.weeklyTarget
+              ? `of ${duration(d.settings.weeklyTarget)} target`
+              : "Actual time, pauses excluded"
+          }
+        />
+        <Stat
+          icon={<BookOpen size={20} />}
+          label="LECTURES COMPLETED"
+          value={String(p.completed)}
+          detail={
+            p.total === undefined
+              ? "Semester total unknown"
+              : `of ${p.total} confirmed lectures`
+          }
+        />
+        <Stat
+          icon={<CalendarDays size={20} />}
+          label="DUE TODAY"
+          value={String(dueToday.length)}
+          detail={`${overdue.length} overdue assessments`}
+        />
+        <Stat
+          icon={<RotateCcw size={20} />}
+          label="REVISION DUE"
+          value={String(revisions.length)}
+          detail="Your scheduled revision dates"
+        />
+      </div>
+      <CourseStatus />
+      <PlanHistory />
       <p className="page-footnote">
         {cloud
           ? "Your records are saved to your private cloud account."
