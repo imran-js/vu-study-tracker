@@ -21,7 +21,11 @@ export interface StudyContextValue {
   run: (
     mutate: (d: Dataset) => void,
     message?: string,
-    options?: { restore?: boolean; topicEditPlanId?: string },
+    options?: {
+      restore?: boolean;
+      topicEditPlanId?: string;
+      scheduleResetPlanId?: string;
+    },
   ) => Promise<boolean>;
   edit: (request: EditorRequest) => void;
   semesterId: string;

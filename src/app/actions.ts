@@ -14,7 +14,11 @@ export async function commit(
   repository: StudyRepository,
   snapshot: Snapshot,
   mutate: (d: Dataset) => void,
-  options?: { restore?: boolean; topicEditPlanId?: string },
+  options?: {
+    restore?: boolean;
+    topicEditPlanId?: string;
+    scheduleResetPlanId?: string;
+  },
 ): Promise<Snapshot> {
   const next = structuredClone(snapshot.data);
   mutate(next);
@@ -22,7 +26,12 @@ export async function commit(
   freezeToday(next, next.settings.activeSemesterId);
   applyCs101Schedule(next);
   if (!options?.restore)
-    assertPlanTransitions(snapshot.data, next, options?.topicEditPlanId);
+    assertPlanTransitions(
+      snapshot.data,
+      next,
+      options?.topicEditPlanId,
+      options?.scheduleResetPlanId,
+    );
   return repository.replace(validateData(next), snapshot.revision);
 }
 export function setLectureStatus(

@@ -23,6 +23,7 @@ import {
   unlockDayPlan,
   freezeToday,
   editDayTopics,
+  useScheduledSubject,
 } from "../../domain/planner";
 import { type DailyPlan } from "../../domain/model";
 import {
@@ -233,6 +234,22 @@ export function DailyPlanner({ part }: { part: "today" | "tomorrow" }) {
             ))}
           </div>
           {plan?.notes && <p className="prewrap">{plan.notes}</p>}
+          {!!plan?.previousAssignments?.length && (
+            <details>
+              <summary>Previous assignments</summary>
+              {plan.previousAssignments.map((previous, index) => (
+                <div key={index}>
+                  {previous.items.map((item) => (
+                    <p className="meta" key={item.role}>
+                      {d.courses.find((c) => c.id === item.courseId)?.code ||
+                        "Previous course"}{" "}
+                      · {item.focus} · {item.minutes} min · {item.status}
+                    </p>
+                  ))}
+                </div>
+              ))}
+            </details>
+          )}
           <div className="button-row">
             {plan?.locked && fixed ? (
               <p className="meta">
@@ -723,7 +740,7 @@ function TopicEditor({ day, close }: { day: string; close: () => void }) {
 }
 
 export function WeeklyPlanner() {
-  const { data: d, semesterId } = useStudy();
+  const { data: d, semesterId, run } = useStudy();
   const day = today(d.settings.timezone);
   const [offset, setOffset] = useState(0);
   const [editing, setEditing] = useState<string>();
@@ -808,9 +825,12 @@ export function WeeklyPlanner() {
                 {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][index]} ·{" "}
                 {date.slice(5)}
               </p>
-              <h3>{savedSubjects || label}</h3>
+              <h3>{label}</h3>
               {savedSubjects && savedSubjects !== label && (
-                <p className="meta">Saved plan · usual slot: {label}</p>
+                <p className="meta">
+                  {date < day ? "Recorded plan" : "Earlier saved plan"}:{" "}
+                  {savedSubjects}
+                </p>
               )}
               <Pill>
                 {state === "Completed"
@@ -859,6 +879,24 @@ export function WeeklyPlanner() {
                   )
                 : unit?.needsRevision) && <Pill>Needs Revision</Pill>}
               {date === day && <p className="meta">Today · saved</p>}
+              {stored &&
+                date >= day &&
+                savedSubjects &&
+                savedSubjects !== label && (
+                  <button
+                    className="small"
+                    disabled={archived}
+                    onClick={() =>
+                      void run(
+                        (next) => useScheduledSubject(next, stored.id),
+                        `${label} scheduled; previous assignments preserved`,
+                        { scheduleResetPlanId: stored.id },
+                      )
+                    }
+                  >
+                    Use {label} schedule
+                  </button>
+                )}
               {date >= day && (
                 <button
                   className="small"

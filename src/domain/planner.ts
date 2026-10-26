@@ -279,6 +279,23 @@ export function recommendDay(
   const rankings = rankCourses(d, semesterId, targetDay);
   const fixed = fixedDay(d, semesterId, targetDay);
   const weekday = weekdayIndex(targetDay);
+  const quizPriority =
+    fixed && ["2026-10-31", "2026-11-01"].includes(targetDay)
+      ? d.assessments.find((a) => {
+          if (
+            d.courses
+              .find((course) => course.id === a.courseId)
+              ?.code.trim()
+              .toUpperCase() !== "CS101" ||
+            a.opensOn !== "2026-11-02" ||
+            !/\bquiz\s*#?\s*1\b/i.test(a.title) ||
+            ["completed", "submitted", "cancelled"].includes(a.status)
+          )
+            return false;
+          const readiness = assessmentReadiness(d, a);
+          return !readiness.calculable || readiness.studied < readiness.total;
+        })
+      : undefined;
   const ordered =
     fixed && weekday >= 5
       ? [...rankings].sort((a, b) => {
@@ -295,9 +312,11 @@ export function recommendDay(
             ).length;
           // Add a bounded recovery/weak-area boost within the existing time budget.
           return (
+            (b.course.id === quizPriority?.courseId ? 100 : 0) -
+              (a.course.id === quizPriority?.courseId ? 100 : 0) ||
             b.score +
-            Math.min(30, need(b.course) * 5) -
-            (a.score + Math.min(30, need(a.course) * 5))
+              Math.min(30, need(b.course) * 5) -
+              (a.score + Math.min(30, need(a.course) * 5))
           );
         })
       : rankings;
@@ -365,8 +384,10 @@ export function recommendDay(
                   : undefined) ||
                 weeklyUnit(d, r.course.id, targetDay)
               : undefined;
-          const unit =
-            fixed && weekday < 5
+          const quizPrep = r.course.id === quizPriority?.courseId;
+          const unit = quizPrep
+            ? undefined
+            : fixed && weekday < 5
               ? covered || weeklyUnit(d, r.course.id, targetDay)
               : covered ||
                 weekendUnit ||
@@ -382,8 +403,9 @@ export function recommendDay(
             role: i === 0 ? "Main" : "Secondary",
             courseId: r.course.id,
             lectureId: unit?.id,
-            focus:
-              fixed && weekday >= 5
+            focus: quizPrep
+              ? `${weekday === 5 ? "Practice" : "Catch-up"}: CS101 Quiz 1 · Topics 1–38`
+              : fixed && weekday >= 5
                 ? `${weekday === 5 ? "Practice" : "Catch-up"}: ${unit?.title || "current material"}`.slice(
                     0,
                     300,
@@ -393,7 +415,12 @@ export function recommendDay(
                     ? `Unit ${weeklyUnitNumber(targetDay)} — add or confirm syllabus details`
                     : "Review current material"),
             minutes: i === 0 ? main : total - main,
-            reason: [mode, ...r.reasons]
+            reason: [
+              quizPrep
+                ? "Quiz 1 opens 2 November; Topics 1–38 coverage is not yet secure"
+                : mode,
+              ...r.reasons,
+            ]
               .filter(Boolean)
               .slice(0, 3)
               .map((reason) =>
@@ -427,6 +454,7 @@ function assignment(plan: DailyPlan, omitTopics = false) {
     notes: plan.notes,
     maximumMinutes: plan.maximumMinutes,
     createdAt: plan.createdAt,
+    previousAssignments: plan.previousAssignments,
     items: plan.items.map(({ status, sessionId, ...item }) => {
       if (!omitTopics) return item;
       const { focus, lectureId, source, reason, ...rest } = item;
@@ -438,9 +466,17 @@ export function assertPlanTransitions(
   before: Dataset,
   after: Dataset,
   topicEditPlanId?: string,
+  scheduleResetPlanId?: string,
 ) {
   for (const previous of before.dailyPlans) {
     const next = after.dailyPlans.find((p) => p.id === previous.id);
+    if (previous.id === scheduleResetPlanId && next) {
+      const expected = structuredClone(before);
+      const reset = useScheduledSubject(expected, previous.id, next.updatedAt);
+      if (JSON.stringify(reset) !== JSON.stringify(next))
+        throw new Error("Use the scheduled-subject action to change this plan");
+      continue;
+    }
     const topicEdit =
       previous.id === topicEditPlanId && previous.day >= today(previous.zone);
     if (
@@ -474,6 +510,60 @@ export function assertPlanTransitions(
         throw new Error("Use the explicit Unlock today's plan action");
     }
   }
+}
+export function useScheduledSubject(
+  d: Dataset,
+  planId: string,
+  now = new Date().toISOString(),
+) {
+  const plan = d.dailyPlans.find((p) => p.id === planId);
+  if (
+    !plan ||
+    plan.day < dayOf(now, plan.zone) ||
+    !fixedDay(d, plan.semesterId, plan.day) ||
+    weekdayIndex(plan.day) >= 5
+  )
+    throw new Error("Choose today or a future weekday in the weekly plan");
+  if (d.semesters.find((s) => s.id === plan.semesterId)?.archived)
+    throw new Error("Archived semesters cannot be edited");
+  const code = weeklySubjects[weekdayIndex(plan.day)];
+  if (
+    plan.items.length === 1 &&
+    d.courses
+      .find((c) => c.id === plan.items[0].courseId)
+      ?.code.trim()
+      .toUpperCase() === code
+  )
+    return plan;
+  if (
+    plan.items.some(
+      (item) => item.sessionId && item.sessionId === d.timer?.sessionId,
+    )
+  )
+    throw new Error(
+      "Finish the current timer before changing the assigned subject",
+    );
+  const items = recommendDay(d, plan.semesterId, plan.day).items;
+  if (
+    items.length !== 1 ||
+    d.courses
+      .find((c) => c.id === items[0].courseId)
+      ?.code.trim()
+      .toUpperCase() !== code
+  )
+    throw new Error(
+      `Add an active ${code} course and available study time first`,
+    );
+  plan.previousAssignments = [
+    ...(plan.previousAssignments || []),
+    { at: now, items: structuredClone(plan.items) },
+  ];
+  plan.items = items.map((item) => ({
+    ...item,
+    minutes: Math.min(item.minutes, plan.maximumMinutes),
+  }));
+  plan.updatedAt = now;
+  return plan;
 }
 export function editDayTopics(
   d: Dataset,

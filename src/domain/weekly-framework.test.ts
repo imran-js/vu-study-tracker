@@ -10,7 +10,9 @@ import {
   saveDayPlan,
   unlockDayPlan,
   editDayTopics,
+  useScheduledSubject,
 } from "./planner";
+import { applyCs101Schedule } from "./cs101-schedule";
 import { logPlanMinutes, startPlanTimer } from "../app/planner-actions";
 import { exportBackup, parseBackup } from "../features/backup/backup";
 
@@ -39,6 +41,70 @@ beforeEach(() => {
   vi.setSystemTime(new Date("2026-10-26T09:00:00Z"));
 });
 afterEach(() => vi.useRealTimers());
+
+it("prioritises CS101 Quiz 1 on this weekend without moving any weekday subject", () => {
+  const { d, semester } = fixture();
+  applyCs101Schedule(d);
+  d.courses[3].planning = {
+    active: true,
+    status: "Temporarily high priority",
+    reason: "Other urgent work",
+    catchUpMinutes: 90,
+  };
+  for (const day of ["2026-10-31", "2026-11-01"]) {
+    const plan = recommendDay(d, semester, day);
+    expect(plan.items[0].courseId).toBe(d.courses[0].id);
+    expect(plan.items[0].focus).toContain("CS101 Quiz 1 · Topics 1–38");
+    expect(plan.items[0].lectureId).toBeUndefined();
+    expect(plan.items[0].minutes).toBeGreaterThan(plan.items[1].minutes);
+  }
+  for (let index = 0; index < 5; index++) {
+    const items = recommendDay(d, semester, addDays("2026-10-26", index)).items;
+    expect(items).toHaveLength(1);
+    expect(items[0].courseId).toBe(d.courses[index].id);
+  }
+  const quiz = d.assessments.find((a) => a.title === "Semester Quiz 1")!;
+  quiz.status = "completed";
+  expect(recommendDay(d, semester, "2026-11-01").items[0].focus).not.toContain(
+    "CS101 Quiz 1",
+  );
+});
+
+it("restores the assigned weekday subject only explicitly, retaining the original assignments and study records", () => {
+  const { d, semester } = fixture();
+  d.semesters[0].name = "Legacy semester";
+  vi.setSystemTime(new Date("2026-10-27T09:00:00Z"));
+  const items = recommendDay(d, semester, "2026-10-27").items;
+  const plan = saveDayPlan(
+    d,
+    semester,
+    "2026-10-27",
+    items,
+    "Keep notes",
+    true,
+  );
+  logPlanMinutes(d, plan.id, "Main", 30);
+  d.semesters[0].name = "Fall 2026";
+  const before = structuredClone(d);
+  useScheduledSubject(d, plan.id);
+  expect(plan.items).toHaveLength(1);
+  expect(plan.items[0].courseId).toBe(d.courses[1].id);
+  expect(plan.previousAssignments?.[0].items).toEqual(
+    before.dailyPlans[0].items,
+  );
+  expect(d.sessions).toEqual(before.sessions);
+  expect(d.lectures).toEqual(before.lectures);
+  expect(() => assertPlanTransitions(before, d)).toThrow(/stays fixed/);
+  expect(() =>
+    assertPlanTransitions(before, d, undefined, plan.id),
+  ).not.toThrow();
+  expect(parseBackup(exportBackup(d))).toEqual(validateData(d));
+  const once = structuredClone(d);
+  useScheduledSubject(d, plan.id);
+  expect(d).toEqual(once);
+  vi.setSystemTime(new Date("2026-10-28T09:00:00Z"));
+  expect(() => useScheduledSubject(d, plan.id)).toThrow(/future weekday/);
+});
 
 it("allows explicit topic edits while preserving recorded study and blocking reassignment and history edits", () => {
   const { d, semester } = fixture();

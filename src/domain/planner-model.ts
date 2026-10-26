@@ -99,6 +99,22 @@ export function dailyPlanSchema(
   date: z.ZodType<string>,
   zone: z.ZodType<string>,
 ) {
+  const planItems = z
+    .array(
+      z.object({
+        role: z.enum(["Main", "Secondary"]),
+        courseId: id,
+        lectureId: id.optional(),
+        focus: z.string().trim().min(1).max(300),
+        minutes: z.number().int().min(1).max(180),
+        reason: z.string().min(1).max(20000),
+        source: z.enum(["Recommendation", "Personal Plan"]),
+        status: z.enum(["pending", "completed", "partial", "skipped"]),
+        sessionId: id.optional(),
+      }),
+    )
+    .min(1)
+    .max(2);
   return z.object({
     id,
     createdAt: instant,
@@ -112,21 +128,14 @@ export function dailyPlanSchema(
     lockHistory: z.array(
       z.object({ at: instant, action: z.enum(["locked", "unlocked"]) }),
     ),
-    items: z
+    items: planItems,
+    previousAssignments: z
       .array(
         z.object({
-          role: z.enum(["Main", "Secondary"]),
-          courseId: id,
-          lectureId: id.optional(),
-          focus: z.string().trim().min(1).max(300),
-          minutes: z.number().int().min(1).max(180),
-          reason: z.string().min(1).max(20000),
-          source: z.enum(["Recommendation", "Personal Plan"]),
-          status: z.enum(["pending", "completed", "partial", "skipped"]),
-          sessionId: id.optional(),
+          at: instant,
+          items: planItems,
         }),
       )
-      .min(1)
-      .max(2),
+      .optional(),
   });
 }

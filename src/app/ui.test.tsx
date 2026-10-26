@@ -73,7 +73,7 @@ afterEach(() => {
 });
 
 describe("fixed weekly study framework", () => {
-  it("shows saved subjects and their own focus instead of mislabelling a preserved Tuesday plan", async () => {
+  it("keeps weekday labels, supports topic edits, and preserves older assignments when applying the scheduled subject", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-10-27T09:00:00Z"));
     const d = initialData();
@@ -121,10 +121,8 @@ describe("fixed weekly study framework", () => {
     const app = await workspace(d);
     await screen.findByRole("heading", { name: "Your weekly study rhythm" });
     const card = document.querySelector(".weekly-day.is-today") as HTMLElement;
-    expect(
-      within(card).getByRole("heading", { name: "MGT101 + MGT211" }),
-    ).toBeTruthy();
-    expect(card.textContent).toContain("Saved plan · usual slot: ENG101");
+    expect(within(card).getByRole("heading", { name: "ENG101" })).toBeTruthy();
+    expect(card.textContent).toContain("Earlier saved plan: MGT101 + MGT211");
     expect(card.textContent).toContain("MGT101 · Rules of Debit and Credit");
     expect(card.textContent).toContain("MGT211 · Business ownership");
     expect(card.textContent).toContain("Today · saved");
@@ -201,6 +199,23 @@ describe("fixed weekly study framework", () => {
     expect(
       app.data().dailyPlans.find((p) => p.day === "2026-10-28")?.locked,
     ).toBe(false);
+    const beforeReset = structuredClone(
+      app.data().dailyPlans.find((p) => p.id === saved.id)!,
+    );
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    fireEvent.click(
+      screen.getByRole("button", { name: "Use ENG101 schedule" }),
+    );
+    await screen.findByText("ENG101 scheduled; previous assignments preserved");
+    const reset = app.data().dailyPlans.find((p) => p.id === saved.id)!;
+    expect(reset.items).toHaveLength(1);
+    expect(reset.items[0].courseId).toBe(d.courses[1].id);
+    expect(reset.previousAssignments?.[0].items).toEqual(beforeReset.items);
+    expect(reset.notes).toBe(saved.notes);
+    expect(reset.locked).toBe(true);
+    expect(app.data().lectures).toEqual(records.lectures);
+    expect(app.data().sessions).toEqual(records.sessions);
+    expect(screen.getByText("Previous assignments")).toBeTruthy();
   });
 
   it("shows all seven days, baseline progress and future editing while today stays locked", async () => {
