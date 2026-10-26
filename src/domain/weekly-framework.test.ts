@@ -9,7 +9,9 @@ import {
   recommendDay,
   saveDayPlan,
   unlockDayPlan,
+  editDayTopics,
 } from "./planner";
+import { logPlanMinutes, startPlanTimer } from "../app/planner-actions";
 import { exportBackup, parseBackup } from "../features/backup/backup";
 
 function fixture() {
@@ -37,6 +39,43 @@ beforeEach(() => {
   vi.setSystemTime(new Date("2026-10-26T09:00:00Z"));
 });
 afterEach(() => vi.useRealTimers());
+
+it("allows explicit topic edits while preserving recorded study and blocking reassignment and history edits", () => {
+  const { d, semester } = fixture();
+  freezeToday(d, semester);
+  const plan = d.dailyPlans[0];
+  logPlanMinutes(d, plan.id, "Main", 30);
+  plan.items[0].status = "completed";
+  const before = structuredClone(d);
+  const unit = d.lectures.find(
+    (l) => l.courseId === plan.items[0].courseId && l.number === 4,
+  )!;
+  editDayTopics(d, plan.id, [
+    { role: "Main", lectureId: unit.id, focus: "My next topic" },
+  ]);
+  expect(plan.locked).toBe(true);
+  expect(plan.items[0].status).toBe("pending");
+  expect(plan.items[0].sessionId).toBeUndefined();
+  expect(d.sessions).toEqual(before.sessions);
+  expect(d.lectures).toEqual(before.lectures);
+  expect(() => assertPlanTransitions(before, d)).toThrow(/stays fixed/);
+  expect(() => assertPlanTransitions(before, d, plan.id)).not.toThrow();
+  expect(parseBackup(exportBackup(d))).toEqual(validateData(d));
+  const wrongCourse = structuredClone(d);
+  wrongCourse.dailyPlans[0].items[0].courseId = d.courses[1].id;
+  expect(() => assertPlanTransitions(before, wrongCourse, plan.id)).toThrow(
+    /stays fixed/,
+  );
+  startPlanTimer(d, plan.id, "Main");
+  expect(() =>
+    editDayTopics(d, plan.id, [{ role: "Main", focus: "Another unit" }]),
+  ).toThrow(/running timer/);
+  vi.setSystemTime(new Date("2026-10-27T09:00:00Z"));
+  expect(() =>
+    editDayTopics(d, plan.id, [{ role: "Main", focus: "Rewrite history" }]),
+  ).toThrow(/Past plans/);
+  expect(() => assertPlanTransitions(before, d, plan.id)).toThrow(/Historical/);
+});
 
 it("starts with unit 3 in the fixed weekday order and projects unit 4 the next week", () => {
   const { d, semester } = fixture();

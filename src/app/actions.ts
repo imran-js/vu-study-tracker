@@ -14,14 +14,15 @@ export async function commit(
   repository: StudyRepository,
   snapshot: Snapshot,
   mutate: (d: Dataset) => void,
-  options?: { restore?: boolean },
+  options?: { restore?: boolean; topicEditPlanId?: string },
 ): Promise<Snapshot> {
   const next = structuredClone(snapshot.data);
   mutate(next);
   applyWeeklyBaseline(next);
   freezeToday(next, next.settings.activeSemesterId);
   applyCs101Schedule(next);
-  if (!options?.restore) assertPlanTransitions(snapshot.data, next);
+  if (!options?.restore)
+    assertPlanTransitions(snapshot.data, next, options?.topicEditPlanId);
   return repository.replace(validateData(next), snapshot.revision);
 }
 export function setLectureStatus(

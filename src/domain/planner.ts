@@ -418,7 +418,7 @@ export function recommendDay(
   };
 }
 
-function assignment(plan: DailyPlan) {
+function assignment(plan: DailyPlan, omitTopics = false) {
   return {
     id: plan.id,
     semesterId: plan.semesterId,
@@ -427,18 +427,28 @@ function assignment(plan: DailyPlan) {
     notes: plan.notes,
     maximumMinutes: plan.maximumMinutes,
     createdAt: plan.createdAt,
-    items: plan.items.map(({ status, sessionId, ...item }) => item),
+    items: plan.items.map(({ status, sessionId, ...item }) => {
+      if (!omitTopics) return item;
+      const { focus, lectureId, source, reason, ...rest } = item;
+      return rest;
+    }),
   };
 }
-export function assertPlanTransitions(before: Dataset, after: Dataset) {
+export function assertPlanTransitions(
+  before: Dataset,
+  after: Dataset,
+  topicEditPlanId?: string,
+) {
   for (const previous of before.dailyPlans) {
     const next = after.dailyPlans.find((p) => p.id === previous.id);
+    const topicEdit =
+      previous.id === topicEditPlanId && previous.day >= today(previous.zone);
     if (
       fixedDay(before, previous.semesterId, previous.day) &&
       previous.day === today(previous.zone) &&
       (!next ||
-        JSON.stringify(assignment(previous)) !==
-          JSON.stringify(assignment(next)) ||
+        JSON.stringify(assignment(previous, topicEdit)) !==
+          JSON.stringify(assignment(next, topicEdit)) ||
         (previous.locked && !next.locked))
     )
       throw new Error(
@@ -452,8 +462,8 @@ export function assertPlanTransitions(before: Dataset, after: Dataset) {
     if (previous.locked) {
       if (
         !next ||
-        JSON.stringify(assignment(previous)) !==
-          JSON.stringify(assignment(next))
+        JSON.stringify(assignment(previous, topicEdit)) !==
+          JSON.stringify(assignment(next, topicEdit))
       )
         throw new Error("Unlock today's plan before changing its assignment");
       if (
@@ -464,6 +474,53 @@ export function assertPlanTransitions(before: Dataset, after: Dataset) {
         throw new Error("Use the explicit Unlock today's plan action");
     }
   }
+}
+export function editDayTopics(
+  d: Dataset,
+  planId: string,
+  topics: { role: "Main" | "Secondary"; focus: string; lectureId?: string }[],
+  now = new Date().toISOString(),
+) {
+  const plan = d.dailyPlans.find((p) => p.id === planId);
+  if (!plan || plan.day < dayOf(now, plan.zone))
+    throw new Error("Past plans cannot be edited");
+  if (d.semesters.find((s) => s.id === plan.semesterId)?.archived)
+    throw new Error("Archived semesters cannot be edited");
+  if (
+    topics.length !== plan.items.length ||
+    new Set(topics.map((t) => t.role)).size !== topics.length
+  )
+    throw new Error("Keep the existing plan items when editing topics");
+  for (const item of plan.items) {
+    const topic = topics.find((t) => t.role === item.role);
+    if (!topic || !topic.focus.trim() || topic.focus.trim().length > 300)
+      throw new Error("Enter a topic of 1–300 characters for each item");
+    if (
+      topic.lectureId &&
+      !d.lectures.some(
+        (l) =>
+          l.id === topic.lectureId &&
+          l.courseId === item.courseId &&
+          (!l.excluded || l.id === item.lectureId),
+      )
+    )
+      throw new Error("Choose a study unit from the assigned course");
+    if (topic.lectureId !== item.lectureId) {
+      if (item.sessionId && d.timer?.sessionId === item.sessionId)
+        throw new Error(
+          "Finish the running timer before changing its study unit",
+        );
+      // Keep the recorded session on its original unit. New study gets a new session.
+      delete item.sessionId;
+      item.status = "pending";
+    }
+    item.focus = topic.focus.trim();
+    item.lectureId = topic.lectureId;
+    item.source = "Personal Plan";
+    item.reason = "Topic chosen in the weekly plan";
+  }
+  plan.updatedAt = now;
+  return plan;
 }
 export function saveDayPlan(
   d: Dataset,

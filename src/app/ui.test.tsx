@@ -127,8 +127,80 @@ describe("fixed weekly study framework", () => {
     expect(card.textContent).toContain("Saved plan · usual slot: ENG101");
     expect(card.textContent).toContain("MGT101 · Rules of Debit and Credit");
     expect(card.textContent).toContain("MGT211 · Business ownership");
-    expect(card.textContent).toContain("Today · locked");
+    expect(card.textContent).toContain("Today · saved");
     expect(app.data().dailyPlans.find((p) => p.id === saved.id)).toEqual(saved);
+    Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
+      configurable: true,
+      value: function (this: HTMLDialogElement) {
+        this.setAttribute("open", "");
+      },
+    });
+    Object.defineProperty(HTMLDialogElement.prototype, "close", {
+      configurable: true,
+      value: function (this: HTMLDialogElement) {
+        this.removeAttribute("open");
+      },
+    });
+    const records = structuredClone({
+      lectures: app.data().lectures,
+      sessions: app.data().sessions,
+    });
+    fireEvent.click(
+      within(card).getByRole("button", { name: "Edit topics for 2026-10-27" }),
+    );
+    let dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getAllByLabelText("Daily topic")[0], {
+      target: { value: "Practise debit and credit examples" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(app.data().dailyPlans.find((p) => p.id === saved.id)).toEqual(saved);
+    fireEvent.click(
+      within(card).getByRole("button", { name: "Edit topics for 2026-10-27" }),
+    );
+    dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getAllByLabelText("Daily topic")[0], {
+      target: { value: "Practise debit and credit examples" },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Save topics" }),
+    );
+    await screen.findByText("Daily topics saved");
+    const edited = app.data().dailyPlans.find((p) => p.id === saved.id)!;
+    expect(edited.items[0].focus).toBe("Practise debit and credit examples");
+    expect(edited.locked).toBe(true);
+    expect(edited.notes).toBe(saved.notes);
+    expect(
+      edited.items.map((i) => [i.courseId, i.minutes, i.status, i.sessionId]),
+    ).toEqual(
+      saved.items.map((i) => [i.courseId, i.minutes, i.status, i.sessionId]),
+    );
+    expect(app.data().lectures).toEqual(records.lectures);
+    expect(app.data().sessions).toEqual(records.sessions);
+    expect(
+      screen.queryByRole("button", { name: "Edit topics for 2026-10-26" }),
+    ).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Edit topics for 2026-10-28" }),
+    );
+    dialog = await screen.findByRole("dialog");
+    const unit = app
+      .data()
+      .lectures.find((l) => l.courseId === d.courses[2].id && l.number === 4)!;
+    fireEvent.change(within(dialog).getByLabelText("Study unit"), {
+      target: { value: unit.id },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Save topics" }),
+    );
+    await vi.waitFor(() =>
+      expect(
+        app.data().dailyPlans.find((p) => p.day === "2026-10-28")?.items[0]
+          .lectureId,
+      ).toBe(unit.id),
+    );
+    expect(
+      app.data().dailyPlans.find((p) => p.day === "2026-10-28")?.locked,
+    ).toBe(false);
   });
 
   it("shows all seven days, baseline progress and future editing while today stays locked", async () => {

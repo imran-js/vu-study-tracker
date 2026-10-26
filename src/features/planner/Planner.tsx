@@ -22,6 +22,7 @@ import {
   saveDayPlan,
   unlockDayPlan,
   freezeToday,
+  editDayTopics,
 } from "../../domain/planner";
 import { type DailyPlan } from "../../domain/model";
 import {
@@ -58,7 +59,7 @@ export function DailyPlanner({ part }: { part: "today" | "tomorrow" }) {
     )
       void run(
         (d) => freezeToday(d, semesterId),
-        "Today's plan is fixed; changes apply tomorrow onward",
+        "Today's plan saved; topics can be edited in the weekly plan",
       );
   }, [
     day,
@@ -77,13 +78,17 @@ export function DailyPlanner({ part }: { part: "today" | "tomorrow" }) {
           <div className="section-heading">
             <div>
               <p className="eyebrow">TODAY · {day}</p>
-              <h2>{plan?.locked ? "Today — Locked" : "Today's study plan"}</h2>
+              <h2>
+                {plan?.locked && !fixed
+                  ? "Today — Locked"
+                  : "Today's study plan"}
+              </h2>
             </div>
             <Pill>{plan ? planOutcome(d, plan) : "Not confirmed"}</Pill>
           </div>
           <p className="muted">
             {plan?.locked
-              ? "Today's choices are fixed. New deadlines and priority changes influence tomorrow onward."
+              ? "Your saved plan stays in place. You can edit its topics in the weekly plan; new deadlines influence tomorrow onward."
               : "Review a realistic plan, then explicitly confirm and lock it. Recommendations are not saved automatically."}
           </p>
           {!items.length && (
@@ -231,8 +236,8 @@ export function DailyPlanner({ part }: { part: "today" | "tomorrow" }) {
           <div className="button-row">
             {plan?.locked && fixed ? (
               <p className="meta">
-                Today stays locked. Edit tomorrow or a later day in the weekly
-                plan.
+                Edit today's topics in the weekly plan below. Your study records
+                stay saved.
               </p>
             ) : plan?.locked ? (
               <button
@@ -598,11 +603,131 @@ function PlanEditor({
   );
 }
 
+function TopicEditor({ day, close }: { day: string; close: () => void }) {
+  const { data: d, semesterId, run, saveError } = useStudy();
+  const stored = d.dailyPlans.find(
+    (p) => p.semesterId === semesterId && p.day === day,
+  );
+  const [items, setItems] = useState(() =>
+    structuredClone(stored?.items || recommendDay(d, semesterId, day).items),
+  );
+  const [busy, setBusy] = useState(false);
+  function change(index: number, patch: Partial<DailyPlan["items"][number]>) {
+    setItems((old) =>
+      old.map((item, i) => (i === index ? { ...item, ...patch } : item)),
+    );
+  }
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    const ok = await run(
+      (next) => {
+        const plan = next.dailyPlans.find(
+          (p) => p.semesterId === semesterId && p.day === day,
+        );
+        if (plan) editDayTopics(next, plan.id, items);
+        else
+          saveDayPlan(
+            next,
+            semesterId,
+            day,
+            items.map((item) => ({
+              ...item,
+              source: "Personal Plan",
+              reason: "Topic chosen in the weekly plan",
+            })),
+            "",
+          );
+      },
+      "Daily topics saved",
+      { topicEditPlanId: stored?.id },
+    );
+    setBusy(false);
+    if (ok) close();
+  }
+  return (
+    <Modal title={`Edit topics · ${day}`} close={close}>
+      <form className="stack-form" onSubmit={save}>
+        <p>
+          Choose a study unit or enter your own topic for each assigned subject.
+          Courses and planned minutes stay the same.
+        </p>
+        <p className="meta">
+          Changing the study unit starts a fresh plan outcome for that item.
+          Previous completion and study-time records remain saved on the
+          original unit.
+        </p>
+        {items.map((item, index) => (
+          <fieldset key={item.role}>
+            <legend>
+              {item.role} ·{" "}
+              {d.courses.find((c) => c.id === item.courseId)?.code}
+            </legend>
+            <label>
+              Study unit
+              <select
+                value={item.lectureId || ""}
+                onChange={(event) => {
+                  const unit = d.lectures.find(
+                    (l) => l.id === event.target.value,
+                  );
+                  change(index, {
+                    lectureId: unit?.id,
+                    focus: unit?.title || item.focus,
+                  });
+                }}
+              >
+                <option value="">General study / custom topic</option>
+                {d.lectures
+                  .filter(
+                    (l) =>
+                      l.courseId === item.courseId &&
+                      (!l.excluded || l.id === item.lectureId),
+                  )
+                  .map((unit) => (
+                    <option key={unit.id} value={unit.id}>
+                      {unit.title}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label>
+              Daily topic
+              <input
+                required
+                maxLength={300}
+                value={item.focus}
+                onChange={(event) =>
+                  change(index, { focus: event.target.value })
+                }
+              />
+            </label>
+          </fieldset>
+        ))}
+        {saveError && (
+          <p className="error" role="alert">
+            {saveError}
+          </p>
+        )}
+        <footer className="dialog-footer">
+          <button type="button" onClick={close}>
+            Cancel
+          </button>
+          <button className="primary" disabled={busy || !items.length}>
+            Save topics
+          </button>
+        </footer>
+      </form>
+    </Modal>
+  );
+}
+
 export function WeeklyPlanner() {
   const { data: d, semesterId } = useStudy();
   const day = today(d.settings.timezone);
   const [offset, setOffset] = useState(0);
   const [editing, setEditing] = useState<string>();
+  const [topicEditing, setTopicEditing] = useState<string>();
   if (!usesWeeklyFramework(d, semesterId)) return null;
   const start = addDays(
     weekStart(day < frameworkStart ? frameworkStart : day, 1),
@@ -638,8 +763,8 @@ export function WeeklyPlanner() {
       </div>
       <p className="muted">
         Starting 26 Oct 2026. One official unit per subject each week. The first
-        two units of all five subjects are complete; revision is scheduled only
-        when you flag it or set a revision date.
+        two units of all five subjects are complete. Edit each day's topics
+        below; revision is scheduled when you flag it or set a revision date.
       </p>
       <div className="weekly-grid">
         {weeklyLabels.map((label, index) => {
@@ -733,7 +858,17 @@ export function WeeklyPlanner() {
                         ?.needsRevision,
                   )
                 : unit?.needsRevision) && <Pill>Needs Revision</Pill>}
-              {date === day && <p className="meta">Today · locked</p>}
+              {date === day && <p className="meta">Today · saved</p>}
+              {date >= day && (
+                <button
+                  className="small"
+                  aria-label={`Edit topics for ${date}`}
+                  disabled={archived || !items.length}
+                  onClick={() => setTopicEditing(date)}
+                >
+                  Edit topics
+                </button>
+              )}
               {date > day && (
                 <button
                   className="small"
@@ -749,8 +884,8 @@ export function WeeklyPlanner() {
       </div>
       <p className="meta">
         Deadlines can change preparation on the assigned subject day or weekend.
-        Today and history stay fixed. Missing syllabus details are never
-        guessed.
+        Saved topics change only when you edit them. Past days remain read-only.
+        Missing syllabus details are never guessed.
       </p>
       {editing && (
         <PlanEditor
@@ -758,6 +893,13 @@ export function WeeklyPlanner() {
           day={editing}
           replan={false}
           close={() => setEditing(undefined)}
+        />
+      )}
+      {topicEditing && (
+        <TopicEditor
+          key={topicEditing}
+          day={topicEditing}
+          close={() => setTopicEditing(undefined)}
         />
       )}
     </section>

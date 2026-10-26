@@ -163,7 +163,7 @@ export default function App({
     async (
       mutate: (d: Dataset) => void,
       message = "Saved",
-      options?: { restore?: boolean },
+      options?: { restore?: boolean; topicEditPlanId?: string },
     ) => {
       if (!latest.current || saving.current) {
         setNotice({
