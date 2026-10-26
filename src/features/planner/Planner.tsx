@@ -653,6 +653,18 @@ export function WeeklyPlanner() {
           );
           const unit = course && weeklyUnit(d, course.id, date);
           const items = stored?.items || recommendation.items;
+          const savedSubjects =
+            stored && index < 5
+              ? [
+                  ...new Set(
+                    stored.items.map(
+                      (item) =>
+                        d.courses.find((c) => c.id === item.courseId)?.code ||
+                        "Unknown course",
+                    ),
+                  ),
+                ].join(" + ") || "Saved plan"
+              : undefined;
           const state = stored
             ? planOutcome(d, stored, day)
             : unit?.status === "completed"
@@ -671,7 +683,10 @@ export function WeeklyPlanner() {
                 {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][index]} ·{" "}
                 {date.slice(5)}
               </p>
-              <h3>{label}</h3>
+              <h3>{savedSubjects || label}</h3>
+              {savedSubjects && savedSubjects !== label && (
+                <p className="meta">Saved plan · usual slot: {label}</p>
+              )}
               <Pill>
                 {state === "Completed"
                   ? "Complete"
@@ -679,14 +694,22 @@ export function WeeklyPlanner() {
                     ? "Planned"
                     : state}
               </Pill>
-              {index < 5 ? (
+              {stored ? (
+                stored.items.map((item) => (
+                  <p key={item.role}>
+                    <strong>
+                      {d.courses.find((c) => c.id === item.courseId)?.code ||
+                        "Unknown course"}
+                    </strong>
+                    {" · "}
+                    {item.focus}
+                  </p>
+                ))
+              ) : index < 5 ? (
                 <p>
-                  {stored
-                    ? stored.items.map((i) => i.focus).join(" · ")
-                    : !course
-                      ? "Course missing or inactive"
-                      : unit?.title ||
-                        "Add or confirm this week's syllabus unit"}
+                  {!course
+                    ? "Course missing or inactive"
+                    : unit?.title || "Add or confirm this week's syllabus unit"}
                 </p>
               ) : (
                 <>
@@ -703,7 +726,13 @@ export function WeeklyPlanner() {
                   ))}
                 </>
               )}
-              {unit?.needsRevision && <Pill>Needs Revision</Pill>}
+              {(stored
+                ? stored.items.some(
+                    (item) =>
+                      d.lectures.find((l) => l.id === item.lectureId)
+                        ?.needsRevision,
+                  )
+                : unit?.needsRevision) && <Pill>Needs Revision</Pill>}
               {date === day && <p className="meta">Today · locked</p>}
               {date > day && (
                 <button

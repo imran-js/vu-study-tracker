@@ -73,6 +73,64 @@ afterEach(() => {
 });
 
 describe("fixed weekly study framework", () => {
+  it("shows saved subjects and their own focus instead of mislabelling a preserved Tuesday plan", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-27T09:00:00Z"));
+    const d = initialData();
+    d.settings.onboarded = true;
+    for (const code of weeklySubjects) {
+      const course = {
+        ...stamp(),
+        semesterId: d.settings.activeSemesterId,
+        code,
+        title: code,
+        notes: "",
+        folderUrl: "",
+        priority: "normal" as const,
+        lectureTotal: 4,
+      };
+      d.courses.push(course);
+      generateLectures(d, course.id);
+    }
+    // A plan saved before the fixed framework was introduced must survive.
+    const semesterName = d.semesters[0].name;
+    d.semesters[0].name = "Legacy semester";
+    const items = [d.courses[2], d.courses[3]].map((course, index) => ({
+      role: index === 0 ? ("Main" as const) : ("Secondary" as const),
+      courseId: course.id,
+      lectureId: d.lectures.find(
+        (l) => l.courseId === course.id && l.number === 3,
+      )!.id,
+      focus: index === 0 ? "Rules of Debit and Credit" : "Business ownership",
+      minutes: index === 0 ? 63 : 27,
+      reason: "Previously saved choice",
+      source: "Personal Plan" as const,
+      status: "pending" as const,
+    }));
+    const saved = structuredClone(
+      saveDayPlan(
+        d,
+        d.settings.activeSemesterId,
+        "2026-10-27",
+        items,
+        "Keep my notes",
+        true,
+      ),
+    );
+    d.semesters[0].name = semesterName;
+    const app = await workspace(d);
+    await screen.findByRole("heading", { name: "Your weekly study rhythm" });
+    const card = document.querySelector(".weekly-day.is-today") as HTMLElement;
+    expect(
+      within(card).getByRole("heading", { name: "MGT101 + MGT211" }),
+    ).toBeTruthy();
+    expect(card.textContent).toContain("Saved plan · usual slot: ENG101");
+    expect(card.textContent).toContain("MGT101 · Rules of Debit and Credit");
+    expect(card.textContent).toContain("MGT211 · Business ownership");
+    expect(card.textContent).toContain("Today · locked");
+    expect(app.data().dailyPlans.find((p) => p.id === saved.id)).toEqual(saved);
+  });
+
   it("shows all seven days, baseline progress and future editing while today stays locked", async () => {
     Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
       configurable: true,
