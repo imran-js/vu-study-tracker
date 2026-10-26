@@ -14,6 +14,7 @@ import { progress } from "../../domain/progress";
 import { generateLectures, setLectureStatus } from "../../app/actions";
 import { ResourceList } from "../resources/Resources";
 import { AssessmentList } from "../assessments/Assessments";
+import { Cs101Grading } from "../assessments/Cs101Grading";
 
 export function Courses() {
   const { data: d, semesterId, edit, run } = useStudy();
@@ -48,6 +49,7 @@ export function Courses() {
           {c.credits !== undefined ? `${c.credits} credit hours · ` : ""}
           {c.priority} priority
         </PageHeading>
+        <Cs101Grading courseId={c.id} />
         <div className="course-overview">
           <section className="panel">
             <div className="section-heading">
@@ -149,6 +151,7 @@ export function Courses() {
                     <div className="meta">
                       <Pill>{l.status}</Pill>
                       {l.excluded && <Pill>excluded</Pill>}
+                      {l.needsRevision && <Pill>Needs Revision</Pill>}
                       <span>
                         {d.revisions.filter((r) => r.lectureId === l.id).length}{" "}
                         revisions
@@ -166,6 +169,21 @@ export function Courses() {
                     </div>
                   </div>
                   <div className="button-row">
+                    <button
+                      className="small"
+                      aria-pressed={!!l.needsRevision}
+                      onClick={() =>
+                        void run((d) => {
+                          d.lectures.find(
+                            (unit) => unit.id === l.id,
+                          )!.needsRevision = !l.needsRevision;
+                        }, "Revision flag updated; completion preserved")
+                      }
+                    >
+                      {l.needsRevision
+                        ? "Clear revision flag"
+                        : "Needs Revision"}
+                    </button>
                     <button
                       className="small"
                       disabled={l.status !== "completed"}

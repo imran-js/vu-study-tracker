@@ -6,7 +6,9 @@ import {
   type Interval,
 } from "../domain/model";
 import type { Snapshot, StudyRepository } from "../data/contracts";
-import { assertPlanTransitions } from "../domain/planner";
+import { assertPlanTransitions, freezeToday } from "../domain/planner";
+import { applyWeeklyBaseline } from "../domain/weekly-framework";
+import { applyCs101Schedule } from "../domain/cs101-schedule";
 
 export async function commit(
   repository: StudyRepository,
@@ -16,6 +18,9 @@ export async function commit(
 ): Promise<Snapshot> {
   const next = structuredClone(snapshot.data);
   mutate(next);
+  applyWeeklyBaseline(next);
+  freezeToday(next, next.settings.activeSemesterId);
+  applyCs101Schedule(next);
   if (!options?.restore) assertPlanTransitions(snapshot.data, next);
   return repository.replace(validateData(next), snapshot.revision);
 }

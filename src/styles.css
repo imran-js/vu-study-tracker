@@ -2566,3 +2566,35 @@ textarea {
     margin-left: auto;
   }
 }
+
+.weekly-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 12px;
+}
+.weekly-day {
+  border: 1px solid var(--border, #8b95a555);
+  border-radius: 14px;
+  padding: 14px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.weekly-day h3 {
+  margin-top: 8px;
+}
+.weekly-day.is-today {
+  outline: 2px solid var(--accent, #4c7668);
+}
+.weekly-day p {
+  font-size: 13px;
+}
+@media (max-width: 1200px) {
+  .weekly-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 640px) {
+  .weekly-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -11,6 +11,8 @@ describe("atomic storage and restore", () => {
   it("enforces locked assignments at the commit boundary and preserves explicit full restore", async () => {
     const repo = new IndexedDbRepository(crypto.randomUUID()),
       data = initialData();
+    // Generic unlock behavior applies outside the fixed Fall 2026 framework.
+    data.semesters[0].name = "Synthetic semester";
     data.courses.push({
       ...stamp(),
       semesterId: data.settings.activeSemesterId,

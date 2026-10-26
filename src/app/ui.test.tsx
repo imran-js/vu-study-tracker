@@ -20,6 +20,8 @@ import { initialData, stamp, type Dataset } from "../domain/model";
 import { recommendDay, saveDayPlan } from "../domain/planner";
 import { today } from "../domain/dates";
 import { dateSignature } from "../domain/calendar";
+import { generateLectures } from "./actions";
+import { weeklySubjects } from "../domain/weekly-framework";
 import type { StudyRepository } from "../data/contracts";
 
 const calendar = vi.hoisted(() => ({
@@ -64,9 +66,77 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+});
+
+describe("fixed weekly study framework", () => {
+  it("shows all seven days, baseline progress and future editing while today stays locked", async () => {
+    Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
+      configurable: true,
+      value: function (this: HTMLDialogElement) {
+        this.setAttribute("open", "");
+      },
+    });
+    Object.defineProperty(HTMLDialogElement.prototype, "close", {
+      configurable: true,
+      value: function (this: HTMLDialogElement) {
+        this.removeAttribute("open");
+      },
+    });
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-26T09:00:00Z"));
+    const d = initialData();
+    d.settings.onboarded = true;
+    for (const code of weeklySubjects) {
+      const c = {
+        ...stamp(),
+        semesterId: d.settings.activeSemesterId,
+        code,
+        title: code,
+        notes: "",
+        folderUrl: "",
+        priority: "normal" as const,
+        lectureTotal: 4,
+      };
+      d.courses.push(c);
+      generateLectures(d, c.id);
+    }
+    const app = await workspace(d);
+    await screen.findByRole("heading", { name: "Your weekly study rhythm" });
+    expect(
+      screen.queryByRole("button", { name: "Unlock today's plan" }),
+    ).toBeNull();
+    expect(
+      app.data().lectures.filter((l) => l.status === "completed"),
+    ).toHaveLength(10);
+    expect(app.data().dailyPlans[0].locked).toBe(true);
+    const board = document.querySelector(".weekly-planner") as HTMLElement;
+    expect(board.querySelectorAll(".weekly-day")).toHaveLength(7);
+    expect(board.textContent).toContain("Practice");
+    expect(board.textContent).toContain("Catch-up");
+    fireEvent.click(
+      within(board).getAllByRole("button", { name: "Plan this day" })[0],
+    );
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByLabelText("Course").querySelectorAll("option"),
+    ).toHaveLength(1);
+    expect(
+      (within(dialog).getByLabelText("Course") as HTMLSelectElement).value,
+    ).toBe(d.courses[1].id);
+    expect(
+      within(dialog).queryByRole("button", { name: "Add Secondary item" }),
+    ).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save draft" }));
+    await screen.findByText("Draft saved; it is not locked");
+    expect(
+      app.data().dailyPlans.find((p) => p.day === "2026-10-27")?.locked,
+    ).toBe(false);
+    expect(app.data().dailyPlans[0].locked).toBe(true);
+  });
 });
 function systemDark(value: boolean) {
   act(() => {
@@ -76,6 +146,7 @@ function systemDark(value: boolean) {
 }
 function fixture() {
   const d = initialData();
+  d.semesters[0].name = "Synthetic semester";
   d.settings.onboarded = true;
   d.courses.push({
     ...stamp(),
@@ -140,6 +211,62 @@ async function route(name: string) {
     window.dispatchEvent(new HashChangeEvent("hashchange"));
   });
 }
+
+it("loads the CS101 official schedule once and displays grading and verified topic coverage", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-10-26T09:00:00Z"));
+  const d = initialData();
+  d.settings.onboarded = true;
+  d.courses.push({
+    ...stamp(),
+    semesterId: d.settings.activeSemesterId,
+    code: "CS101",
+    title: "Introduction to Computing",
+    notes: "My notebook",
+    folderUrl: "",
+    priority: "normal",
+  });
+  const app = await workspace(d);
+  expect(app.data().assessments).toHaveLength(9);
+  expect(app.data().dailyPlans[0].locked).toBe(true);
+  await route("assessments");
+  expect(
+    screen.getByRole("region", { name: "CS101 official grading" }).textContent,
+  ).toContain(
+    "Coursework 40 = GDB 5 + Midterm 20 + Semester Quizzes 15. Final Exam 60.",
+  );
+  expect(
+    screen.getByRole("region", { name: "CS101 official grading" }).textContent,
+  ).toContain("overall Net Score more than 40%");
+  expect(screen.getByRole("heading", { name: "Semester Quiz 1" })).toBeTruthy();
+  expect(screen.getByText("Coverage: Topics 1–38")).toBeTruthy();
+  expect(screen.getByText(/Opens 2026-11-02/)).toBeTruthy();
+  expect(screen.getByRole("heading", { name: "Final Exam" })).toBeTruthy();
+  const saved = structuredClone(app.data());
+  await route("settings");
+  fireEvent.click(screen.getByRole("button", { name: "Save preferences" }));
+  await vi.waitFor(() =>
+    expect(app.data().assessments).toEqual(saved.assessments),
+  );
+  expect(app.data().dailyPlans).toEqual(saved.dailyPlans);
+  await route("courses");
+  fireEvent.click(
+    screen.getByRole("button", { name: /Introduction to Computing/ }),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Edit course" }));
+  const dialog = await screen.findByRole("dialog");
+  fireEvent.change(within(dialog).getByLabelText("Short course notes"), {
+    target: { value: "Edited notebook" },
+  });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+  await vi.waitFor(() =>
+    expect(app.data().courses[0].notes).toBe("Edited notebook"),
+  );
+  expect(app.data().courses[0].cs101ScheduleVersion).toBe(
+    saved.courses[0].cs101ScheduleVersion,
+  );
+  expect(app.data().assessments).toEqual(saved.assessments);
+});
 describe("appearance preferences", () => {
   it("defaults to System and follows system changes in both directions", () => {
     render(

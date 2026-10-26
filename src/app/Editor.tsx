@@ -583,6 +583,10 @@ export function Editor({
             lectureTotal: numeric("lectureTotal"),
             notes: value("notes"),
             folderUrl: value("folderUrl").trim(),
+            baselineUnitIds: d.courses.find((c) => c.id === r.id)
+              ?.baselineUnitIds,
+            cs101ScheduleVersion: d.courses.find((c) => c.id === r.id)
+              ?.cs101ScheduleVersion,
             planning: {
               active: value("planningActive") === "true",
               status: value("planningStatus") as "On track",

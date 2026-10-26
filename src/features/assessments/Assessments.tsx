@@ -5,6 +5,7 @@ import { useStudy } from "../../app/context";
 import { Empty, PageHeading, Pill, ExternalLink } from "../../shared/ui";
 import { deadlineDay, deadlineLabel, isOverdue } from "../../domain/dates";
 import { Readiness } from "./Readiness";
+import { Cs101Grading } from "./Cs101Grading";
 export function AssessmentList({
   courseId,
   filter = "all",
@@ -138,6 +139,7 @@ export function Assessments() {
           </select>
         </label>
       </div>
+      <Cs101Grading courseId={courseId || undefined} />
       <section className="panel">
         {courses.length ? (
           <AssessmentList

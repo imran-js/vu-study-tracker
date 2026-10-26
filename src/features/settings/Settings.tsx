@@ -15,6 +15,7 @@ import { PageHeading, Modal, Pill } from "../../shared/ui";
 import { exportBackup, parseBackup } from "../backup/backup";
 import type { Dataset } from "../../domain/model";
 import { PlannerSettings } from "../planner/Planner";
+import { usesWeeklyFramework } from "../../domain/weekly-framework";
 export function downloadBackup(data: Dataset, prefix = "study-desk-backup") {
   const url = URL.createObjectURL(
     new Blob([exportBackup(data)], { type: "application/json" }),
@@ -107,6 +108,7 @@ export function Settings() {
             <label>
               Week starts on
               <select
+                disabled={usesWeeklyFramework(d, d.settings.activeSemesterId)}
                 value={weekStart}
                 onChange={(e) => setWeekStart(Number(e.target.value) as 1 | 7)}
               >

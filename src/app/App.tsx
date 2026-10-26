@@ -36,6 +36,9 @@ import { Timer } from "../features/sessions/Sessions";
 import { Modal } from "../shared/ui";
 import { today } from "../domain/dates";
 import { applyLocalCatalog } from "../data/local-catalog";
+import { applyWeeklyBaseline } from "../domain/weekly-framework";
+import { applyCs101Schedule } from "../domain/cs101-schedule";
+import { freezeToday } from "../domain/planner";
 
 const localRepository = new IndexedDbRepository();
 const nav = [
@@ -133,6 +136,12 @@ export default function App({
             });
           }
         }
+        const prepared = structuredClone(s.data);
+        applyWeeklyBaseline(prepared);
+        freezeToday(prepared, prepared.settings.activeSemesterId);
+        applyCs101Schedule(prepared);
+        if (JSON.stringify(prepared) !== JSON.stringify(s.data))
+          s = await repository.replace(prepared, s.revision);
         latest.current = s;
         setSnapshot(s);
         setRecovered(!!s.data.timer);

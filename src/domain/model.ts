@@ -90,6 +90,8 @@ export const courseSchema = z.object({
   notes: text,
   folderUrl: z.union([z.literal(""), driveUrl]),
   planning: coursePlanningSchema.optional(),
+  baselineUnitIds: z.array(id).optional(),
+  cs101ScheduleVersion: z.string().max(100).optional(),
 });
 export const lectureSchema = z.object({
   ...base,

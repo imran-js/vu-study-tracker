@@ -1,5 +1,10 @@
 import { Plus, Clock3, BookOpen, CalendarDays, RotateCcw } from "lucide-react";
-import { DailyPlanner, CourseStatus, PlanHistory } from "../planner/Planner";
+import {
+  DailyPlanner,
+  CourseStatus,
+  PlanHistory,
+  WeeklyPlanner,
+} from "../planner/Planner";
 import { assessmentPlanningDay } from "../../domain/planner";
 import { useStudy } from "../../app/context";
 import { Empty, PageHeading, Pill } from "../../shared/ui";
@@ -82,6 +87,7 @@ export function Today() {
         Pick your next step. Keep a steady rhythm.
       </PageHeading>
       <DailyPlanner part="today" />
+      <WeeklyPlanner />
       <div className="today-columns">
         <section className="panel">
           <div className="section-heading">

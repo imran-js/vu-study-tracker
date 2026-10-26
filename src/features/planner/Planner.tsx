@@ -1,7 +1,16 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useStudy } from "../../app/context";
 import { Modal, Pill } from "../../shared/ui";
-import { addDays, minutes, today } from "../../domain/dates";
+import { addDays, minutes, today, weekStart } from "../../domain/dates";
+import {
+  fixedDay,
+  frameworkStart,
+  usesWeeklyFramework,
+  weekdayIndex,
+  weeklyLabels,
+  weeklySubjects,
+  weeklyUnit,
+} from "../../domain/weekly-framework";
 import {
   activePlanningCourses,
   lastStudiedDay,
@@ -12,6 +21,7 @@ import {
   recommendDay,
   saveDayPlan,
   unlockDayPlan,
+  freezeToday,
 } from "../../domain/planner";
 import { type DailyPlan } from "../../domain/model";
 import {
@@ -37,6 +47,29 @@ export function DailyPlanner({ part }: { part: "today" | "tomorrow" }) {
   const [editing, setEditing] = useState<{ day: string; replan: boolean }>();
   const archived = d.semesters.find((s) => s.id === semesterId)?.archived;
   const items = plan?.items || recommendation.items;
+  const fixed = fixedDay(d, semesterId, day);
+  useEffect(() => {
+    if (
+      part === "today" &&
+      fixed &&
+      !archived &&
+      (!plan || !plan.locked) &&
+      (plan || recommendation.items.length)
+    )
+      void run(
+        (d) => freezeToday(d, semesterId),
+        "Today's plan is fixed; changes apply tomorrow onward",
+      );
+  }, [
+    day,
+    semesterId,
+    fixed,
+    archived,
+    plan?.id,
+    plan?.locked,
+    recommendation.items.length,
+    part,
+  ]);
   return (
     <>
       {part === "today" && (
@@ -109,7 +142,13 @@ export function DailyPlanner({ part }: { part: "today" | "tomorrow" }) {
                               )
                             }
                           >
-                            {status[0].toUpperCase() + status.slice(1)}
+                            {fixed
+                              ? status === "completed"
+                                ? "Complete"
+                                : status === "partial"
+                                  ? "In Progress"
+                                  : "Skipped"
+                              : status[0].toUpperCase() + status.slice(1)}
                           </button>
                         ),
                       )}
@@ -190,7 +229,12 @@ export function DailyPlanner({ part }: { part: "today" | "tomorrow" }) {
           </div>
           {plan?.notes && <p className="prewrap">{plan.notes}</p>}
           <div className="button-row">
-            {plan?.locked ? (
+            {plan?.locked && fixed ? (
+              <p className="meta">
+                Today stays locked. Edit tomorrow or a later day in the weekly
+                plan.
+              </p>
+            ) : plan?.locked ? (
               <button
                 onClick={() => {
                   if (
@@ -325,7 +369,12 @@ function PlanEditor({
   );
   const [notes, setNotes] = useState(stored?.notes || "");
   const [busy, setBusy] = useState(false);
-  const courses = activePlanningCourses(d, semesterId);
+  const fixedWeekday = fixedDay(d, semesterId, day) && weekdayIndex(day) < 5;
+  const courses = activePlanningCourses(d, semesterId).filter(
+    (c) =>
+      !fixedWeekday ||
+      c.code.trim().toUpperCase() === weeklySubjects[weekdayIndex(day)],
+  );
   function change(index: number, patch: Partial<DailyPlan["items"][number]>) {
     setItems((old) =>
       old.map((item, i) =>
@@ -494,7 +543,7 @@ function PlanEditor({
             Add Main item manually
           </button>
         )}
-        {items.length === 1 && courses.length > 1 && (
+        {!fixedWeekday && items.length === 1 && courses.length > 1 && (
           <button
             type="button"
             onClick={() => {
@@ -549,6 +598,143 @@ function PlanEditor({
   );
 }
 
+export function WeeklyPlanner() {
+  const { data: d, semesterId } = useStudy();
+  const day = today(d.settings.timezone);
+  const [offset, setOffset] = useState(0);
+  const [editing, setEditing] = useState<string>();
+  if (!usesWeeklyFramework(d, semesterId)) return null;
+  const start = addDays(
+    weekStart(day < frameworkStart ? frameworkStart : day, 1),
+    offset * 7,
+  );
+  const courses = activePlanningCourses(d, semesterId);
+  const archived = d.semesters.find((s) => s.id === semesterId)?.archived;
+  return (
+    <section className="panel weekly-planner">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">MONDAY → SUNDAY</p>
+          <h2>Your weekly study rhythm</h2>
+        </div>
+        <div className="button-row">
+          <button
+            aria-label="Previous study week"
+            disabled={start <= frameworkStart}
+            onClick={() => setOffset(offset - 1)}
+          >
+            ←
+          </button>
+          <span>
+            {start} – {addDays(start, 6)}
+          </span>
+          <button
+            aria-label="Next study week"
+            onClick={() => setOffset(offset + 1)}
+          >
+            →
+          </button>
+        </div>
+      </div>
+      <p className="muted">
+        Starting 26 Oct 2026. One official unit per subject each week. The first
+        two units of all five subjects are complete; revision is scheduled only
+        when you flag it or set a revision date.
+      </p>
+      <div className="weekly-grid">
+        {weeklyLabels.map((label, index) => {
+          const date = addDays(start, index);
+          const stored = d.dailyPlans.find(
+            (p) => p.semesterId === semesterId && p.day === date,
+          );
+          const recommendation = recommendDay(d, semesterId, date);
+          const course = courses.find(
+            (c) => c.code.trim().toUpperCase() === label,
+          );
+          const unit = course && weeklyUnit(d, course.id, date);
+          const items = stored?.items || recommendation.items;
+          const state = stored
+            ? planOutcome(d, stored, day)
+            : unit?.status === "completed"
+              ? "Complete"
+              : unit?.status === "in progress"
+                ? "In Progress"
+                : date < day
+                  ? "Not recorded"
+                  : "Planned";
+          return (
+            <article
+              className={`weekly-day ${date === day ? "is-today" : ""}`}
+              key={date}
+            >
+              <p className="eyebrow">
+                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][index]} ·{" "}
+                {date.slice(5)}
+              </p>
+              <h3>{label}</h3>
+              <Pill>
+                {state === "Completed"
+                  ? "Complete"
+                  : state === "Draft"
+                    ? "Planned"
+                    : state}
+              </Pill>
+              {index < 5 ? (
+                <p>
+                  {stored
+                    ? stored.items.map((i) => i.focus).join(" · ")
+                    : !course
+                      ? "Course missing or inactive"
+                      : unit?.title ||
+                        "Add or confirm this week's syllabus unit"}
+                </p>
+              ) : (
+                <>
+                  <p>
+                    {index === 5
+                      ? "MCQs, mastery tests and revision"
+                      : "Unfinished work, weak areas and quiz preparation"}
+                  </p>
+                  {items.map((i) => (
+                    <p className="meta" key={i.role}>
+                      {d.courses.find((c) => c.id === i.courseId)?.code} ·{" "}
+                      {i.focus}
+                    </p>
+                  ))}
+                </>
+              )}
+              {unit?.needsRevision && <Pill>Needs Revision</Pill>}
+              {date === day && <p className="meta">Today · locked</p>}
+              {date > day && (
+                <button
+                  className="small"
+                  disabled={archived || !items.length}
+                  onClick={() => setEditing(date)}
+                >
+                  Plan this day
+                </button>
+              )}
+            </article>
+          );
+        })}
+      </div>
+      <p className="meta">
+        Deadlines can change preparation on the assigned subject day or weekend.
+        Today and history stay fixed. Missing syllabus details are never
+        guessed.
+      </p>
+      {editing && (
+        <PlanEditor
+          key={editing}
+          day={editing}
+          replan={false}
+          close={() => setEditing(undefined)}
+        />
+      )}
+    </section>
+  );
+}
+
 export function CourseStatus() {
   const { data: d, semesterId, edit } = useStudy();
   const day = today(d.settings.timezone);
@@ -560,7 +746,9 @@ export function CourseStatus() {
       <div className="course-status-grid">
         {activePlanningCourses(d, semesterId).map((c) => {
           const p = progress(d, semesterId, c.id),
-            next = nextStudyUnit(d, c.id, day),
+            next = usesWeeklyFramework(d, semesterId)
+              ? weeklyUnit(d, c.id, day < frameworkStart ? frameworkStart : day)
+              : nextStudyUnit(d, c.id, day),
             last = lastStudiedDay(d, c.id, day);
           const current = d.lectures
             .filter(
@@ -607,7 +795,11 @@ export function CourseStatus() {
                     : "Not started"}
               </p>
               <p className="meta">
-                <strong>Next:</strong>{" "}
+                <strong>
+                  {usesWeeklyFramework(d, semesterId)
+                    ? "This week's target:"
+                    : "Next:"}
+                </strong>{" "}
                 {next?.title || "Review current material"}
               </p>
               <p className="meta">

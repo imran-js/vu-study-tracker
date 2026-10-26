@@ -2,6 +2,13 @@ import { Temporal } from "@js-temporal/polyfill";
 import { addDays, dayOf, deadlineDay, minutes, today } from "./dates";
 import { stamp, type DailyPlan, type Dataset, type Course } from "./model";
 import { assessmentReadiness } from "./readiness";
+import {
+  fixedDay,
+  weekdayIndex,
+  weeklySubjects,
+  weeklyUnit,
+  weeklyUnitNumber,
+} from "./weekly-framework";
 
 export const activePlanningCourses = (d: Dataset, semesterId: string) =>
   d.semesters.find((s) => s.id === semesterId)?.archived
@@ -19,16 +26,19 @@ export function planOutcome(
   plan: DailyPlan,
   asOf = today(plan.zone),
 ) {
-  if (plan.items.every((i) => i.status === "completed")) return "Completed";
+  if (plan.items.every((i) => i.status === "completed"))
+    return fixedDay(d, plan.semesterId, plan.day) ? "Complete" : "Completed";
   const partial = plan.items.some(
     (i) =>
       i.status === "completed" ||
       i.status === "partial" ||
+      (i.sessionId && d.timer?.sessionId === i.sessionId) ||
       (i.sessionId &&
         minutes(d.sessions.find((s) => s.id === i.sessionId)?.intervals || []) >
           0),
   );
-  if (partial) return "Partial";
+  if (partial)
+    return fixedDay(d, plan.semesterId, plan.day) ? "In Progress" : "Partial";
   if (plan.day < asOf || plan.items.every((i) => i.status === "skipped"))
     return "Missed";
   return plan.locked ? "Planned" : "Draft";
@@ -267,7 +277,39 @@ export function recommendDay(
     ),
   );
   const rankings = rankCourses(d, semesterId, targetDay);
-  const chosen = rankings.slice(0, budget >= 30 ? 2 : 1);
+  const fixed = fixedDay(d, semesterId, targetDay);
+  const weekday = weekdayIndex(targetDay);
+  const ordered =
+    fixed && weekday >= 5
+      ? [...rankings].sort((a, b) => {
+          const need = (course: Course) =>
+            d.lectures.filter(
+              (l) =>
+                l.courseId === course.id &&
+                !l.excluded &&
+                (l.needsRevision ||
+                  (l.nextRevision && l.nextRevision <= targetDay) ||
+                  (l.number >= 3 &&
+                    l.number <= weeklyUnitNumber(targetDay) &&
+                    l.status !== "completed")),
+            ).length;
+          // Add a bounded recovery/weak-area boost within the existing time budget.
+          return (
+            b.score +
+            Math.min(30, need(b.course) * 5) -
+            (a.score + Math.min(30, need(a.course) * 5))
+          );
+        })
+      : rankings;
+  const chosen =
+    fixed && weekday < 5
+      ? rankings
+          .filter(
+            (r) =>
+              r.course.code.trim().toUpperCase() === weeklySubjects[weekday],
+          )
+          .slice(0, 1)
+      : ordered.slice(0, budget >= 30 ? 2 : 1);
   const total = chosen.length ? budget : 0;
   const main = chosen.length === 2 ? Math.ceil(total * 0.7) : total;
   const items: DailyPlan["items"] =
@@ -278,8 +320,13 @@ export function recommendDay(
               assessmentPlanningDay(d, b, targetDay) || "9999",
             ),
           )[0];
+          const urgentDay =
+            urgent && assessmentPlanningDay(d, urgent, targetDay);
           const c =
-            urgent && assessmentReadiness(d, urgent).calculable
+            urgent &&
+            (!fixed ||
+              (urgentDay && daysBetween(targetDay, urgentDay) <= 14)) &&
+            assessmentReadiness(d, urgent).calculable
               ? urgent.coverage
               : undefined;
           const covered = c
@@ -294,14 +341,60 @@ export function recommendDay(
                 )
                 .sort((a, b) => a.number - b.number)[0]
             : undefined;
-          const unit = covered || nextStudyUnit(d, r.course.id, targetDay);
+          const weekendUnit =
+            fixed && weekday >= 5
+              ? d.lectures
+                  .filter(
+                    (l) =>
+                      l.courseId === r.course.id &&
+                      !l.excluded &&
+                      (l.needsRevision ||
+                        (l.nextRevision && l.nextRevision <= targetDay)),
+                  )
+                  .sort((a, b) => a.number - b.number)[0] ||
+                (weekday === 6
+                  ? d.lectures
+                      .filter(
+                        (l) =>
+                          l.courseId === r.course.id &&
+                          !l.excluded &&
+                          l.status !== "completed" &&
+                          l.number <= weeklyUnitNumber(targetDay),
+                      )
+                      .sort((a, b) => a.number - b.number)[0]
+                  : undefined) ||
+                weeklyUnit(d, r.course.id, targetDay)
+              : undefined;
+          const unit =
+            fixed && weekday < 5
+              ? covered || weeklyUnit(d, r.course.id, targetDay)
+              : covered ||
+                weekendUnit ||
+                (fixed ? undefined : nextStudyUnit(d, r.course.id, targetDay));
+          const mode = fixed
+            ? weekday === 5
+              ? "Practice: MCQs, mastery tests and revision"
+              : weekday === 6
+                ? "Catch-up: unfinished work and weak areas"
+                : `Complete one official unit (weekly target ${weeklyUnitNumber(targetDay)})`
+            : "";
           return {
             role: i === 0 ? "Main" : "Secondary",
             courseId: r.course.id,
             lectureId: unit?.id,
-            focus: unit?.title || "Review current material",
+            focus:
+              fixed && weekday >= 5
+                ? `${weekday === 5 ? "Practice" : "Catch-up"}: ${unit?.title || "current material"}`.slice(
+                    0,
+                    300,
+                  )
+                : unit?.title ||
+                  (fixed
+                    ? `Unit ${weeklyUnitNumber(targetDay)} — add or confirm syllabus details`
+                    : "Review current material"),
             minutes: i === 0 ? main : total - main,
-            reason: r.reasons
+            reason: [mode, ...r.reasons]
+              .filter(Boolean)
               .slice(0, 3)
               .map((reason) =>
                 reason.length > 220 ? `${reason.slice(0, 217)}…` : reason,
@@ -317,9 +410,11 @@ export function recommendDay(
     rankings,
     booked,
     total,
-    explanation: booked
-      ? `${Math.round(booked)} min already scheduled; recommendations use the remaining daily budget.`
-      : "Conservative daily budget; overdue work raises priority, not daily hours.",
+    explanation: fixed
+      ? `Monday–Friday: one subject and one unit. Saturday: practice. Sunday: catch-up. Deadlines guide preparation within these slots; saved Today stays fixed.${booked ? ` ${Math.round(booked)} min already scheduled.` : ""}`
+      : booked
+        ? `${Math.round(booked)} min already scheduled; recommendations use the remaining daily budget.`
+        : "Conservative daily budget; overdue work raises priority, not daily hours.",
   };
 }
 
@@ -338,6 +433,17 @@ function assignment(plan: DailyPlan) {
 export function assertPlanTransitions(before: Dataset, after: Dataset) {
   for (const previous of before.dailyPlans) {
     const next = after.dailyPlans.find((p) => p.id === previous.id);
+    if (
+      fixedDay(before, previous.semesterId, previous.day) &&
+      previous.day === today(previous.zone) &&
+      (!next ||
+        JSON.stringify(assignment(previous)) !==
+          JSON.stringify(assignment(next)) ||
+        (previous.locked && !next.locked))
+    )
+      throw new Error(
+        "Today's plan stays fixed. Schedule changes for tomorrow or later.",
+      );
     if (
       previous.day < today(previous.zone) &&
       JSON.stringify(previous) !== JSON.stringify(next)
@@ -373,6 +479,22 @@ export function saveDayPlan(
   const old = d.dailyPlans.find(
     (p) => p.semesterId === semesterId && p.day === day,
   );
+  if (old && fixedDay(d, semesterId, day) && day === currentDay)
+    throw new Error(
+      "Today's plan stays fixed. Schedule changes for tomorrow or later.",
+    );
+  if (
+    fixedDay(d, semesterId, day) &&
+    weekdayIndex(day) < 5 &&
+    (items.length !== 1 ||
+      d.courses
+        .find((c) => c.id === items[0]?.courseId)
+        ?.code.trim()
+        .toUpperCase() !== weeklySubjects[weekdayIndex(day)])
+  )
+    throw new Error(
+      "Weekdays follow the fixed subject schedule with one unit per day.",
+    );
   if (old?.locked)
     throw new Error("Unlock today's plan before editing or replanning");
   if (lock && day !== currentDay)
@@ -386,12 +508,14 @@ export function saveDayPlan(
     semesterId,
     day,
     zone: old?.zone || d.settings.timezone,
-    locked: lock,
+    locked: lock || (fixedDay(d, semesterId, day) && day === currentDay),
     notes,
     maximumMinutes: cap,
     lockHistory: [
       ...(old?.lockHistory || []),
-      ...(lock ? [{ at: now, action: "locked" as const }] : []),
+      ...(lock || (fixedDay(d, semesterId, day) && day === currentDay)
+        ? [{ at: now, action: "locked" as const }]
+        : []),
     ],
     items: structuredClone(items).map((item) => {
       const previous = old?.items.find(
@@ -438,7 +562,38 @@ export function unlockDayPlan(
   const plan = d.dailyPlans.find((p) => p.id === planId);
   if (!plan || plan.day !== dayOf(now, plan.zone))
     throw new Error("Only today's plan can be unlocked");
+  if (fixedDay(d, plan.semesterId, plan.day))
+    throw new Error(
+      "Today's plan stays fixed. Schedule changes for tomorrow or later.",
+    );
   plan.locked = false;
   plan.updatedAt = now;
   plan.lockHistory.push({ at: now, action: "unlocked" });
+}
+
+export function freezeToday(
+  d: Dataset,
+  semesterId: string,
+  now = new Date().toISOString(),
+) {
+  const day = dayOf(now, d.settings.timezone);
+  if (
+    !fixedDay(d, semesterId, day) ||
+    d.semesters.find((s) => s.id === semesterId)?.archived
+  )
+    return;
+  const old = d.dailyPlans.find(
+    (p) => p.semesterId === semesterId && p.day === day,
+  );
+  if (old) {
+    if (!old.locked) {
+      old.locked = true;
+      old.updatedAt = now;
+      old.lockHistory.push({ at: now, action: "locked" });
+    }
+    return;
+  }
+  const recommendation = recommendDay(d, semesterId, day);
+  if (recommendation.items.length)
+    saveDayPlan(d, semesterId, day, recommendation.items, "", true, now);
 }

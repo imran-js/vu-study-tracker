@@ -26,6 +26,7 @@ describe("cloud snapshot saves", () => {
   it("accepts and transmits schema 3 daily plans through the same owner-scoped RPC", async () => {
     const { client, rpc } = mock();
     const data = initialData();
+    data.semesters[0].name = "Synthetic semester";
     const semesterId = data.settings.activeSemesterId;
     data.courses.push({
       ...stamp(),
